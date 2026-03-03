@@ -22,7 +22,17 @@ export default function MermaidChart({ chart }: MermaidChartProps) {
         const mermaid = (await import("mermaid")).default;
         mermaid.initialize({
           startOnLoad: false,
-          theme: "default",
+          theme: "base",
+          themeVariables: {
+            primaryColor: "#68d8ff",
+            primaryTextColor: "#0f172a",
+            primaryBorderColor: "#0ea5e9",
+            lineColor: "#334155",
+            secondaryColor: "#c7f9cc",
+            tertiaryColor: "#ffd6a5",
+            clusterBkg: "#e0f2fe",
+            clusterBorder: "#0284c7"
+          },
           securityLevel: "loose"
         });
 

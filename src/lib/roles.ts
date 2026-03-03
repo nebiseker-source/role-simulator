@@ -11,6 +11,17 @@ export const ROLE_LABELS: Record<RoleKey, string> = {
   data_scientist: "Data Bilimci"
 };
 
+const COMMON_EXTRA = `
+EK ZORUNLU BÖLÜMLER:
+10) Görev Kırılımı (Task Breakdown - kim/ne zaman/ne teslim eder)
+11) Test Senaryoları (en az 5 madde, pozitif/negatif)
+12) Teslimat Çıktıları (doküman, diyagram, backlog, test checklist)
+
+Diyagramları renkli üret:
+- Mermaid içinde classDef veya style kullan
+- Gerekirse mermaid init bloğu ile themeVariables tanımla
+`;
+
 export function buildSystemPrompt(role: RoleKey) {
   switch (role) {
     case "business_analyst":
@@ -28,13 +39,9 @@ ZORUNLU BÖLÜMLER:
 6) User Story'ler + Acceptance Criteria (Given/When/Then)
 7) Riskler + Önlemler
 8) Tahmini Plan (haftalık, 2-6 hafta arası; varsayımları yaz)
-9) Diyagram (Mermaid): süreci gösteren flowchart veya BPMN benzeri.
+9) Diyagram (Mermaid): süreci gösteren flowchart veya BPMN benzeri
 
-Diyagramı şu şekilde ver:
-\`\`\`mermaid
-flowchart TD
-...
-\`\`\`
+${COMMON_EXTRA}
       `.trim();
 
     case "product_owner":
@@ -52,6 +59,9 @@ ZORUNLU BÖLÜMLER:
 6) Release Plan (sprint bazlı)
 7) Riskler ve bağımlılıklar
 8) Diyagram (Mermaid): kullanıcı akışı
+9) Sprint hedefleri + DoD
+
+${COMMON_EXTRA}
       `.trim();
 
     case "solution_architect":
@@ -68,6 +78,9 @@ ZORUNLU BÖLÜMLER:
 5) API Taslakları (endpoint örnekleri)
 6) Non-functional kararlar (cache, rate-limit, authn/authz)
 7) Riskler + Trade-off'lar
+8) Dağıtım yaklaşımı (env/prod/monitoring)
+
+${COMMON_EXTRA}
       `.trim();
 
     case "data_scientist":
@@ -85,6 +98,9 @@ ZORUNLU BÖLÜMLER:
 6) Deney tasarımı (A/B, offline eval)
 7) Üretime alma (pipeline, monitoring)
 8) Diyagram (Mermaid): pipeline akışı
+9) Model riskleri ve sapma (drift) kontrolü
+
+${COMMON_EXTRA}
       `.trim();
   }
 }
