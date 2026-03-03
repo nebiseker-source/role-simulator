@@ -16,7 +16,11 @@ type RagIndex = {
   chunks: RagChunk[];
 };
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.RAG_DATA_DIR
+  ? path.resolve(process.env.RAG_DATA_DIR)
+  : process.env.VERCEL
+    ? path.join("/tmp", "role-sim-rag")
+    : path.join(process.cwd(), "data");
 const INDEX_FILE = path.join(DATA_DIR, "rag-index.json");
 const DEFAULT_TOP_K = Number(process.env.RAG_TOP_K ?? 5);
 
@@ -159,14 +163,18 @@ export async function searchKnowledge(query: string, topK = DEFAULT_TOP_K): Prom
 }
 
 export async function formatRagContext(query: string, topK = DEFAULT_TOP_K): Promise<string> {
-  const hits = await searchKnowledge(query, topK);
-  if (!hits.length) return "";
-  return hits
-    .map(
-      (h, i) =>
-        `[Kaynak ${i + 1}] ${h.title} (parca ${h.chunkIndex + 1})\n${h.text}`
-    )
-    .join("\n\n");
+  try {
+    const hits = await searchKnowledge(query, topK);
+    if (!hits.length) return "";
+    return hits
+      .map(
+        (h, i) =>
+          `[Kaynak ${i + 1}] ${h.title} (parca ${h.chunkIndex + 1})\n${h.text}`
+      )
+      .join("\n\n");
+  } catch {
+    return "";
+  }
 }
 
 export async function getRagStats(): Promise<{ documents: number; chunks: number }> {

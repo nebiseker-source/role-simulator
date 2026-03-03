@@ -174,30 +174,37 @@ E --> F[Monitoring]
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const role = asRoleKey(String(body.role ?? ""));
-  const task = String(body.task ?? "").trim();
-  const notes = String(body.notes ?? "").trim();
-  const fileNotes = String(body.fileNotes ?? "").trim();
-
-  if (!role || !task) {
-    return NextResponse.json({ error: "role ve task zorunlu" }, { status: 400 });
-  }
-
-  const mergedNotes = [notes, fileNotes]
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, MAX_NOTES_CHARS);
-  const query = [task, mergedNotes].filter(Boolean).join("\n\n");
-  const ragContext = await formatRagContext(query);
-  const mergedWithRag = [mergedNotes, ragContext].filter(Boolean).join("\n\n");
-
-  const system = buildSystemPrompt(role);
-  const userContent = mergedWithRag
-    ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedWithRag}\n\nKurallar:\n- Referans notlarıyla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
-    : `İŞ: ${task}`;
-
+  let fallbackRole: RoleKey = "business_analyst";
+  let fallbackTask = "Model çağrısı sırasında hata oluştu.";
+  let fallbackNotes = "";
   try {
+    const body = await req.json();
+    const role = asRoleKey(String(body.role ?? ""));
+    const task = String(body.task ?? "").trim();
+    const notes = String(body.notes ?? "").trim();
+    const fileNotes = String(body.fileNotes ?? "").trim();
+
+    if (!role || !task) {
+      return NextResponse.json({ error: "role ve task zorunlu" }, { status: 400 });
+    }
+
+    fallbackRole = role;
+    fallbackTask = task;
+
+    const mergedNotes = [notes, fileNotes]
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(0, MAX_NOTES_CHARS);
+    const query = [task, mergedNotes].filter(Boolean).join("\n\n");
+    const ragContext = await formatRagContext(query);
+    const mergedWithRag = [mergedNotes, ragContext].filter(Boolean).join("\n\n");
+    fallbackNotes = mergedWithRag;
+
+    const system = buildSystemPrompt(role);
+    const userContent = mergedWithRag
+      ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedWithRag}\n\nKurallar:\n- Referans notlarıyla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
+      : `İŞ: ${task}`;
+
     const result = await callLlm({
       system,
       user: userContent,
@@ -214,7 +221,7 @@ export async function POST(req: Request) {
     const shouldFallback = isQuotaLikeError(e) || isLocalConnectionError(e);
     if (shouldFallback) {
       return NextResponse.json({
-        output: buildFallbackOutput(role, task, mergedWithRag),
+        output: buildFallbackOutput(fallbackRole, fallbackTask, fallbackNotes),
         fallback: true,
         provider
       });
