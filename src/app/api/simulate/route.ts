@@ -9,6 +9,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const role = body.role as RoleKey;
     const task = String(body.task ?? "").trim();
+    const notes = String(body.notes ?? "").trim();
 
     if (!role || !task) {
       return NextResponse.json(
@@ -24,7 +25,12 @@ export async function POST(req: Request) {
       temperature: 0.4,
       messages: [
         { role: "system", content: system },
-        { role: "user", content: `IS: ${task}` }
+        {
+          role: "user",
+          content: notes
+            ? `IS: ${task}\n\nREFERANS DERS NOTLARI:\n${notes}\n\nKurallar:\n- Referans notlariyla tutarli ol.\n- Bilgi eksikse varsayimini acikca belirt.`
+            : `IS: ${task}`
+        }
       ]
     });
 

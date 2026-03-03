@@ -1,27 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ROLE_LABELS, RoleKey } from "@/lib/roles";
-import MarkdownOutput from "@/components/MarkdownOutput";
-
-const ROLE_HINTS: Record<RoleKey, string> = {
-  business_analyst:
-    "Gereksinim, stakeholder, user story ve surec odakli cikti.",
-  product_owner: "MVP, backlog, onceliklendirme ve release plan odakli cikti.",
-  solution_architect:
-    "Mimari bilesenler, API taslagi, entegrasyon ve trade-off odakli cikti.",
-  data_scientist:
-    "Problem framing, veri ihtiyaci, modelleme ve deney tasarimi odakli cikti."
-};
 
 export default function Home() {
   const roles = useMemo(() => Object.keys(ROLE_LABELS) as RoleKey[], []);
   const [role, setRole] = useState<RoleKey>("business_analyst");
   const [task, setTask] = useState("");
   const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [output, setOutput] = useState("");
-  const outputRef = useRef<HTMLDivElement>(null);
 
   async function simulate() {
     setLoading(true);
@@ -37,142 +26,121 @@ export default function Home() {
       setOutput(data.output);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
-      setOutput(`Hata: ${message}`);
+      setOutput(`**Hata:** ${message}`);
     } finally {
       setLoading(false);
     }
   }
 
-  async function exportPdf() {
-    if (!outputRef.current || !output.trim()) return;
-    setExporting(true);
-
-    try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf")
-      ]);
-
-      const canvas = await html2canvas(outputRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true
-      });
-
-      const pdf = new jsPDF("p", "pt", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const usableWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * usableWidth) / canvas.width;
-      const imgData = canvas.toDataURL("image/png");
-
-      let remainingHeight = imgHeight;
-      let position = margin;
-
-      pdf.addImage(imgData, "PNG", margin, position, usableWidth, imgHeight);
-      remainingHeight -= pageHeight - margin * 2;
-
-      while (remainingHeight > 0) {
-        pdf.addPage();
-        position = margin - (imgHeight - remainingHeight);
-        pdf.addImage(imgData, "PNG", margin, position, usableWidth, imgHeight);
-        remainingHeight -= pageHeight - margin * 2;
-      }
-
-      pdf.save(`role-simulation-${role}.pdf`);
-    } finally {
-      setExporting(false);
-    }
-  }
-
   return (
-    <main className="app-shell">
-      <section className="hero reveal">
-        <p className="eyebrow">AI Team Simulation</p>
-        <h1>Role-Based Analyst Studio</h1>
-        <p className="hero-copy">
-          Isi ver, rolu sec, yapilandirilmis analiz ciktisini tek panelde al.
-          Bu arayuz MVP icin hizli, SaaS icin olceklenebilir bir iskelet sunar.
-        </p>
-        <div className="hero-tags">
-          <span>BA</span>
-          <span>PO</span>
-          <span>Architect</span>
-          <span>Data Scientist</span>
-        </div>
-      </section>
-
-      <section className="layout-grid">
-        <article className="panel reveal" style={{ animationDelay: "80ms" }}>
-          <h2>Simulasyon Kontrol Paneli</h2>
-
-          <label htmlFor="role">Rol</label>
-          <select
-            id="role"
-            className="field"
-            value={role}
-            onChange={(e) => setRole(e.target.value as RoleKey)}
-          >
-            {roles.map((k) => (
-              <option key={k} value={k}>
-                {ROLE_LABELS[k]}
-              </option>
-            ))}
-          </select>
-          <p className="hint">{ROLE_HINTS[role]}</p>
-
-          <div className="role-pills">
-            {roles.map((k) => (
-              <button
-                key={k}
-                type="button"
-                className={k === role ? "pill active" : "pill"}
-                onClick={() => setRole(k)}
-              >
-                {ROLE_LABELS[k]}
-              </button>
-            ))}
-          </div>
-
-          <label htmlFor="task">Is / Problem Tanimi</label>
-          <textarea
-            id="task"
-            className="field textarea"
-            value={task}
-            onChange={(e) => setTask(e.target.value)}
-            placeholder="Ornek: Otobus bileti iptal olan kullaniciya otomatik bildirim ve alternatif sefer onerisi akisi tasarla."
-          />
-
-          <button
-            onClick={simulate}
-            disabled={loading || !task.trim()}
-            className="primary-btn"
-          >
-            {loading ? "Simule ediliyor..." : "Simule Et"}
-          </button>
-        </article>
-
-        <article className="panel reveal" style={{ animationDelay: "140ms" }}>
-          <div className="output-head">
-            <h2>Cikti</h2>
-            <div className="output-actions">
-              <span className="badge">{ROLE_LABELS[role]}</span>
-              <button
-                type="button"
-                className="ghost-btn"
-                disabled={exporting || !output.trim()}
-                onClick={exportPdf}
-              >
-                {exporting ? "PDF hazirlaniyor..." : "PDF indir"}
-              </button>
+    <main className="min-h-screen bg-gradient-to-b from-zinc-50 to-white">
+      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-5xl px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-black text-white grid place-items-center font-semibold">
+              RS
+            </div>
+            <div>
+              <div className="text-sm text-zinc-500">Role Simulator</div>
+              <h1 className="text-lg font-semibold leading-tight">
+                Role-Based Analyst Simulator
+              </h1>
             </div>
           </div>
-          <div className="output-box" ref={outputRef}>
-            {output ? <MarkdownOutput content={output} /> : "-"}
+
+          <a
+            className="text-sm text-zinc-600 hover:text-black"
+            href="https://localhost:3000"
+            onClick={(e) => e.preventDefault()}
+          >
+            MVP v0.1
+          </a>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-5xl px-6 py-8 grid gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-base font-semibold">Gorev Tanimla</h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Bir problem yaz, rol sec ve ciktiyi role uygun formatta uret.
+            </p>
           </div>
-        </article>
-      </section>
+
+          <div className="p-6 grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Rol</label>
+              <select
+                className="border rounded-xl px-3 py-2 bg-white"
+                value={role}
+                onChange={(e) => setRole(e.target.value as RoleKey)}
+              >
+                {roles.map((k) => (
+                  <option key={k} value={k}>
+                    {ROLE_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Is / Problem Tanimi</label>
+              <textarea
+                className="border rounded-xl px-3 py-2 min-h-[180px] bg-white"
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+                placeholder="Orn: Sefer iptalinde kullaniciya otomatik bilgilendirme ve alternatif sefer onerisi..."
+              />
+              <div className="text-xs text-zinc-500 flex justify-between">
+                <span>Ipucu: Kapsami, hedefi ve kisitlari yaz.</span>
+                <span>{task.length} karakter</span>
+              </div>
+            </div>
+
+            <button
+              onClick={simulate}
+              disabled={loading || !task.trim()}
+              className="rounded-xl bg-black text-white px-4 py-2.5 font-medium disabled:opacity-50"
+            >
+              {loading ? "Simulasyon hazirlaniyor..." : "Simule Et"}
+            </button>
+
+            <div className="rounded-xl bg-zinc-50 border p-4 text-sm text-zinc-600">
+              <div className="font-medium text-zinc-800 mb-1">Not</div>
+              <div>
+                Eger &quot;429 quota&quot; goruyorsan, Billing/Credit eklemen
+                gerekir.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-6 border-b flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Cikti</h2>
+              <p className="text-sm text-zinc-500 mt-1">
+                Markdown olarak goruntulenir.
+              </p>
+            </div>
+            <button
+              className="text-sm rounded-xl border px-3 py-2 hover:bg-zinc-50"
+              onClick={() => navigator.clipboard.writeText(output || "")}
+              disabled={!output}
+            >
+              Kopyala
+            </button>
+          </div>
+
+          <div className="p-6 prose prose-zinc max-w-none">
+            {output ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+            ) : (
+              <p className="text-zinc-500">Henuz cikti yok. Soldan bir gorev gir.</p>
+            )}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
