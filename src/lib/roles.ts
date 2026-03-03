@@ -5,9 +5,9 @@ export type RoleKey =
   | "data_scientist";
 
 export const ROLE_LABELS: Record<RoleKey, string> = {
-  business_analyst: "Is Analisti",
+  business_analyst: "İş Analisti",
   product_owner: "Product Owner",
-  solution_architect: "Is Mimari",
+  solution_architect: "İş Mimarı",
   data_scientist: "Data Bilimci"
 };
 

@@ -9,6 +9,7 @@ export default function Home() {
   const roles = useMemo(() => Object.keys(ROLE_LABELS) as RoleKey[], []);
   const [role, setRole] = useState<RoleKey>("business_analyst");
   const [task, setTask] = useState("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState("");
 
@@ -19,7 +20,7 @@ export default function Home() {
       const r = await fetch("/api/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, task })
+        body: JSON.stringify({ role, task, notes })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error ?? "API error");
@@ -43,7 +44,7 @@ export default function Home() {
             <div>
               <div className="text-sm text-zinc-500">Role Simulator</div>
               <h1 className="text-lg font-semibold leading-tight">
-                Role-Based Analyst Simulator
+                Role-Based Analist Simülatörü
               </h1>
             </div>
           </div>
@@ -61,9 +62,9 @@ export default function Home() {
       <div className="mx-auto max-w-5xl px-6 py-8 grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border bg-white shadow-sm">
           <div className="p-6 border-b">
-            <h2 className="text-base font-semibold">Gorev Tanimla</h2>
+            <h2 className="text-base font-semibold">Görev Tanımla</h2>
             <p className="text-sm text-zinc-500 mt-1">
-              Bir problem yaz, rol sec ve ciktiyi role uygun formatta uret.
+              Bir problem yaz, rol seç ve çıktıyı role uygun formatta üret.
             </p>
           </div>
 
@@ -84,16 +85,31 @@ export default function Home() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Is / Problem Tanimi</label>
+              <label className="text-sm font-medium">İş / Problem Tanımı</label>
               <textarea
                 className="border rounded-xl px-3 py-2 min-h-[180px] bg-white"
                 value={task}
                 onChange={(e) => setTask(e.target.value)}
-                placeholder="Orn: Sefer iptalinde kullaniciya otomatik bilgilendirme ve alternatif sefer onerisi..."
+                placeholder="Örn: Sefer iptalinde kullanıcıya otomatik bilgilendirme ve alternatif sefer önerisi..."
               />
               <div className="text-xs text-zinc-500 flex justify-between">
-                <span>Ipucu: Kapsami, hedefi ve kisitlari yaz.</span>
+                <span>İpucu: Kapsamı, hedefi ve kısıtları yaz.</span>
                 <span>{task.length} karakter</span>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">
+                Ders Notları / Referans (Opsiyonel)
+              </label>
+              <textarea
+                className="border rounded-xl px-3 py-2 min-h-[120px] bg-white"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Örn: Bulanık modelleme yaklaşımı, optimizasyon teknikleri, kurum içi analiz standartları..."
+              />
+              <div className="text-xs text-zinc-500">
+                Bu alandaki notlar, çıktıyı role göre referans alarak iyileştirir.
               </div>
             </div>
 
@@ -102,13 +118,13 @@ export default function Home() {
               disabled={loading || !task.trim()}
               className="rounded-xl bg-black text-white px-4 py-2.5 font-medium disabled:opacity-50"
             >
-              {loading ? "Simulasyon hazirlaniyor..." : "Simule Et"}
+              {loading ? "Simülasyon hazırlanıyor..." : "Simüle Et"}
             </button>
 
             <div className="rounded-xl bg-zinc-50 border p-4 text-sm text-zinc-600">
               <div className="font-medium text-zinc-800 mb-1">Not</div>
               <div>
-                Eger &quot;429 quota&quot; goruyorsan, Billing/Credit eklemen
+                Eğer &quot;429 quota&quot; görüyorsan, Billing/Credit eklemen
                 gerekir.
               </div>
             </div>
@@ -118,9 +134,9 @@ export default function Home() {
         <section className="rounded-2xl border bg-white shadow-sm">
           <div className="p-6 border-b flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold">Cikti</h2>
+              <h2 className="text-base font-semibold">Çıktı</h2>
               <p className="text-sm text-zinc-500 mt-1">
-                Markdown olarak goruntulenir.
+                Markdown olarak görüntülenir.
               </p>
             </div>
             <button
@@ -136,7 +152,7 @@ export default function Home() {
             {output ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
             ) : (
-              <p className="text-zinc-500">Henuz cikti yok. Soldan bir gorev gir.</p>
+              <p className="text-zinc-500">Henüz çıktı yok. Soldan bir görev gir.</p>
             )}
           </div>
         </section>
