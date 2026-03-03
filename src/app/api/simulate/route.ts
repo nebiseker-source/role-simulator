@@ -7,6 +7,7 @@ import {
   isLocalConnectionError,
   isQuotaLikeError
 } from "@/lib/server/llm";
+import { formatRagContext } from "@/lib/server/rag";
 
 function asRoleKey(value: string): RoleKey | null {
   const roles: RoleKey[] = [
@@ -187,10 +188,13 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .join("\n\n")
     .slice(0, MAX_NOTES_CHARS);
+  const query = [task, mergedNotes].filter(Boolean).join("\n\n");
+  const ragContext = await formatRagContext(query);
+  const mergedWithRag = [mergedNotes, ragContext].filter(Boolean).join("\n\n");
 
   const system = buildSystemPrompt(role);
-  const userContent = mergedNotes
-    ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedNotes}\n\nKurallar:\n- Referans notlarıyla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
+  const userContent = mergedWithRag
+    ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedWithRag}\n\nKurallar:\n- Referans notlarıyla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
     : `İŞ: ${task}`;
 
   try {
@@ -210,7 +214,7 @@ export async function POST(req: Request) {
     const shouldFallback = isQuotaLikeError(e) || isLocalConnectionError(e);
     if (shouldFallback) {
       return NextResponse.json({
-        output: buildFallbackOutput(role, task, mergedNotes),
+        output: buildFallbackOutput(role, task, mergedWithRag),
         fallback: true,
         provider
       });

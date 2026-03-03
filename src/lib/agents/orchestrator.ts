@@ -10,6 +10,7 @@ import {
   isLocalConnectionError,
   isQuotaLikeError
 } from "@/lib/server/llm";
+import { formatRagContext } from "@/lib/server/rag";
 
 function roleTitle(role: RoleKey): string {
   switch (role) {
@@ -97,12 +98,14 @@ export async function runTeamSimulation(
 ): Promise<TeamSimulationOutput> {
   const notes = (input.notes ?? "").trim();
   const task = input.task.trim();
+  const ragContext = await formatRagContext([task, notes].filter(Boolean).join("\n\n"));
+  const notesWithRag = [notes, ragContext].filter(Boolean).join("\n\n");
   const stepResults: AgentStepResult[] = [];
   let anyFallback = false;
 
   for (const role of TEAM_SEQUENCE) {
     const system = buildSystemPrompt(role);
-    const user = buildStepUserPrompt(role, task, notes, stepResults);
+    const user = buildStepUserPrompt(role, task, notesWithRag, stepResults);
 
     try {
       const result = await callLlm({

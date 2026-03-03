@@ -7,6 +7,7 @@ Rol bazlı analiz çıktısı üreten Next.js tabanlı SaaS MVP.
 - Team pipeline simülasyonu (`/api/simulate-team`)
 - Ders notu yükleme (`PDF`, `DOCX`, `TXT`, `MD`)
 - Dosya metin önizleme (`/api/extract-notes`)
+- Gerçek RAG (`/api/rag/index`, `/api/rag/search`, `/api/rag/stats`)
 - 429 quota veya local model erişim hatasında otomatik fallback çıktı
 
 ## LLM Provider Seçimi
@@ -25,6 +26,7 @@ Varsayılan local mod:
 LLM_PROVIDER=local
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=qwen2.5:7b-instruct
+OLLAMA_EMBED_MODEL=nomic-embed-text
 ```
 
 OpenAI kullanmak istersen:
@@ -39,6 +41,7 @@ OPENAI_MODEL=gpt-4.1-mini
 2. Model indir:
 ```bash
 ollama pull qwen2.5:7b-instruct
+ollama pull nomic-embed-text
 ```
 3. Ollama servisinin çalıştığını kontrol et:
 ```bash
@@ -48,6 +51,7 @@ ollama list
 ## Projeyi Çalıştırma
 ```bash
 npm install
+npm run llm:check
 npm run dev
 ```
 

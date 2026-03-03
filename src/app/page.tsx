@@ -44,6 +44,9 @@ export default function Home() {
   const [singleFallback, setSingleFallback] = useState(false);
   const [teamOutput, setTeamOutput] = useState<TeamResult | null>(null);
   const [history, setHistory] = useState<NotesHistoryItem[]>([]);
+  const [ragLoading, setRagLoading] = useState(false);
+  const [ragMessage, setRagMessage] = useState("");
+  const [ragStats, setRagStats] = useState<{ documents: number; chunks: number } | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(HISTORY_KEY);
@@ -53,6 +56,17 @@ export default function Home() {
     } catch {
       setHistory([]);
     }
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/rag/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data.documents === "number" && typeof data.chunks === "number") {
+          setRagStats({ documents: data.documents, chunks: data.chunks });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   function persistHistory(items: NotesHistoryItem[]) {
@@ -151,6 +165,38 @@ export default function Home() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function addNotesToRag() {
+    setRagLoading(true);
+    setRagMessage("");
+    try {
+      const form = new FormData();
+      form.append("title", task.trim() ? task.trim().slice(0, 80) : "Ders Notu");
+      form.append("text", notes);
+      if (notesFile) {
+        form.append("file", notesFile);
+      }
+
+      const r = await fetch("/api/rag/index", {
+        method: "POST",
+        body: form
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error ?? "RAG indexleme hatası");
+
+      setRagMessage(`RAG indexleme tamamlandı. Doküman: ${data.docId}, parça: ${data.chunkCount}`);
+      const statsResp = await fetch("/api/rag/stats");
+      const stats = await statsResp.json();
+      if (typeof stats.documents === "number" && typeof stats.chunks === "number") {
+        setRagStats({ documents: stats.documents, chunks: stats.chunks });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
+      setRagMessage(`Hata: ${message}`);
+    } finally {
+      setRagLoading(false);
     }
   }
 
@@ -286,6 +332,26 @@ export default function Home() {
                 >
                   {loading && activeResult === "team" ? "Çalışıyor..." : "Ekip Simülasyonu Çalıştır"}
                 </button>
+              </div>
+
+              <div className="rounded-xl border border-cyan-300/25 bg-cyan-950/20 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-cyan-100">RAG Bilgi Tabanı</p>
+                  <button
+                    type="button"
+                    onClick={addNotesToRag}
+                    disabled={ragLoading || (!notes.trim() && !notesFile)}
+                    className="rounded-lg border border-cyan-300/40 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+                  >
+                    {ragLoading ? "Indexleniyor..." : "Notları RAG'e Ekle"}
+                  </button>
+                </div>
+                <p className="text-xs text-cyan-100/80">
+                  {ragStats
+                    ? `Toplam doküman: ${ragStats.documents} • Toplam parça: ${ragStats.chunks}`
+                    : "RAG istatistikleri yükleniyor..."}
+                </p>
+                {ragMessage ? <p className="mt-2 text-xs text-cyan-100">{ragMessage}</p> : null}
               </div>
             </div>
           </article>

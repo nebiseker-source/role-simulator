@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "llm:check": "powershell -ExecutionPolicy Bypass -File scripts/check-local-llm.ps1"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
