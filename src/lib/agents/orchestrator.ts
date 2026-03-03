@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import { buildSystemPrompt, RoleKey } from "@/lib/roles";
 import {
   AgentStepResult,
@@ -6,20 +5,11 @@ import {
   TeamSimulationInput,
   TeamSimulationOutput
 } from "@/lib/agents/types";
-
-const modelName = "gpt-4.1-mini";
-
-function isQuotaLikeError(err: unknown): boolean {
-  const status = (err as { status?: number } | null)?.status;
-  const message = err instanceof Error ? err.message.toLowerCase() : "";
-  return (
-    status === 429 ||
-    message.includes("429") ||
-    message.includes("quota") ||
-    message.includes("billing") ||
-    message.includes("insufficient")
-  );
-}
+import {
+  callLlm,
+  isLocalConnectionError,
+  isQuotaLikeError
+} from "@/lib/server/llm";
 
 function roleTitle(role: RoleKey): string {
   switch (role) {
@@ -37,9 +27,9 @@ function roleTitle(role: RoleKey): string {
 function buildFallback(role: RoleKey, task: string): string {
   return [
     `## ${roleTitle(role)} Fallback Çıktısı`,
-    "> Uyarı: Bu çıktı OpenAI quota/billing hatası nedeniyle fallback modunda üretilmiştir.",
+    "> Uyarı: Bu çıktı model çağrısı başarısız olduğu için fallback modunda üretilmiştir.",
     "",
-    `### Problem`,
+    "### Problem",
     task,
     "",
     "### Plan",
@@ -110,42 +100,25 @@ export async function runTeamSimulation(
   const stepResults: AgentStepResult[] = [];
   let anyFallback = false;
 
-  if (!process.env.OPENAI_API_KEY) {
-    const fallbackSteps = TEAM_SEQUENCE.map((role) => {
-      const output = buildFallback(role, task);
-      return { role, output, fallbackUsed: true };
-    });
-    return {
-      steps: fallbackSteps,
-      finalSynthesis: buildSynthesis(fallbackSteps),
-      fallbackUsed: true
-    };
-  }
-
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
   for (const role of TEAM_SEQUENCE) {
     const system = buildSystemPrompt(role);
     const user = buildStepUserPrompt(role, task, notes, stepResults);
 
     try {
-      const resp = await client.chat.completions.create({
-        model: modelName,
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user }
-        ]
+      const result = await callLlm({
+        system,
+        user,
+        temperature: 0.3
       });
-      const output = resp.choices?.[0]?.message?.content?.trim() ?? "";
       stepResults.push({
         role,
-        output: output || buildFallback(role, task),
-        fallbackUsed: !output
+        output: result.text || buildFallback(role, task),
+        fallbackUsed: !result.text
       });
-      anyFallback = anyFallback || !output;
+      anyFallback = anyFallback || !result.text;
     } catch (err: unknown) {
-      if (!isQuotaLikeError(err)) {
+      const shouldFallback = isQuotaLikeError(err) || isLocalConnectionError(err);
+      if (!shouldFallback) {
         throw err;
       }
       anyFallback = true;

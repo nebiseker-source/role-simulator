@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { buildSystemPrompt, RoleKey } from "@/lib/roles";
 import { MAX_NOTES_CHARS } from "@/lib/server/notes-extractor";
-
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import {
+  callLlm,
+  getLlmProvider,
+  isLocalConnectionError,
+  isQuotaLikeError
+} from "@/lib/server/llm";
 
 function asRoleKey(value: string): RoleKey | null {
   const roles: RoleKey[] = [
@@ -15,177 +18,157 @@ function asRoleKey(value: string): RoleKey | null {
   return roles.includes(value as RoleKey) ? (value as RoleKey) : null;
 }
 
-function isQuotaLikeError(err: unknown): boolean {
-  const status = (err as { status?: number } | null)?.status;
-  const message = err instanceof Error ? err.message.toLowerCase() : "";
-  return (
-    status === 429 ||
-    message.includes("429") ||
-    message.includes("quota") ||
-    message.includes("billing") ||
-    message.includes("insufficient")
-  );
-}
-
 function buildFallbackOutput(role: RoleKey, task: string, notes: string): string {
   const notesLine = notes
-    ? `- Referans notlardan yararlanildi (ozet): ${notes.slice(0, 320)}...`
-    : "- Referans not girilmedi, varsayim bazli cikarim yapildi.";
+    ? `- Referans notlardan yararlanıldı (özet): ${notes.slice(0, 320)}...`
+    : "- Referans not girilmedi, varsayım bazlı çıkarım yapıldı.";
 
   const commonStart = [
-    "> Uyari: OpenAI quota/billing hatasi (429) nedeniyle bu cikti fallback modunda uretilmistir.",
+    `> Uyarı: Model çağrısı başarısız oldu, fallback çıktı üretildi.`,
     `> Rol: ${role}`,
     "",
-    `## Problem Tanimi`,
-    `${task}`,
+    "## Problem Tanımı",
+    task,
     "",
-    `## Varsayimlar`,
-    "- Ekip capraz fonksiyonel ve haftalik sprintlerle calisiyor.",
-    "- Is hedefi olculebilir KPI'larla takip edilecek.",
+    "## Varsayımlar",
+    "- Ekip çapraz fonksiyonel ve haftalık sprintlerle çalışıyor.",
+    "- İş hedefi ölçülebilir KPI'larla takip edilecek.",
     notesLine,
     ""
   ].join("\n");
 
   switch (role) {
     case "business_analyst":
-      return [
-        commonStart,
-        "## Stakeholder Listesi",
-        "- Is birimi yoneticisi",
-        "- Operasyon ekibi",
-        "- Musteri deneyimi ekibi",
-        "- Yazilim gelistirme ekibi",
-        "",
-        "## Functional Requirements",
-        "- Talep girisi, durum takibi ve bildirim mekanizmasi",
-        "- Rol bazli ekran ve yetki kontrolu",
-        "- Raporlama ve denetim kaydi",
-        "",
-        "## Non-Functional Requirements",
-        "- Performans: kritik ekran yanit suresi < 2 sn",
-        "- Guvenlik: rol bazli erisim + audit log",
-        "- Erisilebilirlik: temel WCAG uyumu",
-        "",
-        "## User Story + Acceptance Criteria",
-        "- Kullanici olarak talebimi olusturmak istiyorum, boylece sureci takip edebilirim.",
-        "- Given gecerli veri, When kaydet tiklanir, Then talep ID uretilir ve durum 'Acilik' olur.",
-        "",
-        "## Riskler ve Onlemler",
-        "- Risk: Kapsam kaymasi -> Onlem: MVP siniri ve degisiklik kurulu",
-        "- Risk: Veri kalitesi -> Onlem: zorunlu alan ve dogrulama kurallari",
-        "",
-        "## Tahmini Plan (4 hafta)",
-        "- Hafta 1: As-Is/To-Be + gereksinim onayi",
-        "- Hafta 2: User story ve acceptance kriterleri",
-        "- Hafta 3: UAT senaryolari + teknik handoff",
-        "- Hafta 4: Pilot ve iyilestirme",
-        "",
-        "```mermaid",
-        "flowchart TD",
-        "A[Talep Girisi] --> B[On Degerlendirme]",
-        "B --> C{Uygun mu?}",
-        "C -- Evet --> D[Isleme Al]",
-        "C -- Hayir --> E[Revizyon Istegi]",
-        "D --> F[Sonuc Bildirimi]",
-        "```"
-      ].join("\n");
+      return `${commonStart}
+## Stakeholder Listesi
+- İş birimi yöneticisi
+- Operasyon ekibi
+- Müşteri deneyimi ekibi
+- Yazılım geliştirme ekibi
+
+## Functional Requirements
+- Talep girişi, durum takibi ve bildirim mekanizması
+- Rol bazlı ekran ve yetki kontrolü
+- Raporlama ve denetim kaydı
+
+## Non-Functional Requirements
+- Performans: kritik ekran yanıt süresi < 2 sn
+- Güvenlik: rol bazlı erişim + audit log
+- Erişilebilirlik: temel WCAG uyumu
+
+## User Story + Acceptance Criteria
+- Kullanıcı olarak talebimi oluşturmak istiyorum, böylece süreci takip edebilirim.
+- Given geçerli veri, When kaydet tıklanır, Then talep ID üretilir ve durum 'Açık' olur.
+
+## Riskler ve Önlemler
+- Risk: Kapsam kayması -> Önlem: MVP sınırı ve değişiklik kurulu
+- Risk: Veri kalitesi -> Önlem: zorunlu alan ve doğrulama kuralları
+
+## Tahmini Plan (4 hafta)
+- Hafta 1: As-Is/To-Be + gereksinim onayı
+- Hafta 2: User story ve acceptance kriterleri
+- Hafta 3: UAT senaryoları + teknik handoff
+- Hafta 4: Pilot ve iyileştirme
+
+\`\`\`mermaid
+flowchart TD
+A[Talep Girişi] --> B[Ön Değerlendirme]
+B --> C{Uygun mu?}
+C -- Evet --> D[İşleme Al]
+C -- Hayır --> E[Revizyon İsteği]
+D --> F[Sonuç Bildirimi]
+\`\`\``;
 
     case "product_owner":
-      return [
-        commonStart,
-        "## Hedef ve Basari Metrikleri",
-        "- KPI-1: surec tamamlama suresinde %20 azalma",
-        "- KPI-2: self-service kullaniminda %30 artis",
-        "",
-        "## MVP Tanimi",
-        "- Temel talep olusturma ve durum takibi",
-        "- Bildirim ve alternatif onerisi",
-        "",
-        "## Backlog (Epic > Feature > Story)",
-        "- Epic: Talep Yonetimi",
-        "- Feature: Talep Olusturma",
-        "- Story: Kullanici talep formunu doldurur ve kaydeder",
-        "",
-        "## Onceliklendirme (RICE)",
-        "- Talep olusturma: Reach yuksek, Effort dusuk -> Oncelik 1",
-        "- Gelismis raporlama: Reach orta, Effort orta -> Oncelik 2",
-        "",
-        "## Release Plan",
-        "- Sprint 1: temel akislar",
-        "- Sprint 2: bildirim + iyilestirme",
-        "",
-        "```mermaid",
-        "flowchart LR",
-        "U[Kullanici] --> F[Form Doldur]",
-        "F --> S[Sistem Isler]",
-        "S --> N[Bildirim]",
-        "N --> U",
-        "```"
-      ].join("\n");
+      return `${commonStart}
+## Hedef ve Başarı Metrikleri
+- KPI-1: süreç tamamlama süresinde %20 azalma
+- KPI-2: self-service kullanımında %30 artış
+
+## MVP Tanımı
+- Temel talep oluşturma ve durum takibi
+- Bildirim ve alternatif önerisi
+
+## Backlog (Epic > Feature > Story)
+- Epic: Talep Yönetimi
+- Feature: Talep Oluşturma
+- Story: Kullanıcı talep formunu doldurur ve kaydeder
+
+## Önceliklendirme (RICE)
+- Talep oluşturma: Reach yüksek, Effort düşük -> Öncelik 1
+- Gelişmiş raporlama: Reach orta, Effort orta -> Öncelik 2
+
+## Release Plan
+- Sprint 1: temel akışlar
+- Sprint 2: bildirim + iyileştirme
+
+\`\`\`mermaid
+flowchart LR
+U[Kullanıcı] --> F[Form Doldur]
+F --> S[Sistem İşler]
+S --> N[Bildirim]
+N --> U
+\`\`\``;
 
     case "solution_architect":
-      return [
-        commonStart,
-        "## Mimari Hedefler",
-        "- Olceklenebilir, izlenebilir ve guvenli mimari",
-        "",
-        "## Bilesenler",
-        "- Web/Mobile UI",
-        "- API Gateway",
-        "- Is kurallari servisi",
-        "- Notification servisi",
-        "- Raporlama DB",
-        "",
-        "## API Taslaklari",
-        "- POST /requests",
-        "- GET /requests/{id}",
-        "- POST /requests/{id}/notify",
-        "",
-        "## NFR Kararlari",
-        "- Authn/Authz: JWT + RBAC",
-        "- Rate limit: 100 req/min per token",
-        "- Cache: sik sorgular icin 60 sn",
-        "",
-        "```mermaid",
-        "flowchart TD",
-        "UI --> APIGW",
-        "APIGW --> APP[Application Service]",
-        "APP --> DB[(PostgreSQL)]",
-        "APP --> NOTIF[Notification Service]",
-        "```"
-      ].join("\n");
+      return `${commonStart}
+## Mimari Hedefler
+- Ölçeklenebilir, izlenebilir ve güvenli mimari
+
+## Bileşenler
+- Web/Mobile UI
+- API Gateway
+- İş kuralları servisi
+- Notification servisi
+- Raporlama DB
+
+## API Taslakları
+- POST /requests
+- GET /requests/{id}
+- POST /requests/{id}/notify
+
+## NFR Kararları
+- Authn/Authz: JWT + RBAC
+- Rate limit: 100 req/min per token
+- Cache: sık sorgular için 60 sn
+
+\`\`\`mermaid
+flowchart TD
+UI --> APIGW
+APIGW --> APP[Application Service]
+APP --> DB[(PostgreSQL)]
+APP --> NOTIF[Notification Service]
+\`\`\``;
 
     case "data_scientist":
-      return [
-        commonStart,
-        "## Problem Framing",
-        "- Gorev: optimizasyon + siniflandirma karmasi",
-        "",
-        "## Veri Ihtiyaclari",
-        "- Talep kayitlari, durum gecmisi, sonuc metrikleri",
-        "",
-        "## Ozellik Fikirleri",
-        "- Talep tipi, kanal, zaman, gecmis cozum suresi",
-        "",
-        "## Model Onerileri",
-        "- Baseline: lojistik regresyon / karar agaci",
-        "- Gelismis: gradient boosting",
-        "",
-        "## Degerlendirme",
-        "- F1, precision-recall, maliyet bazli KPI",
-        "",
-        "## Uretime Alma",
-        "- Gunluk batch egitim + drift izlemesi",
-        "",
-        "```mermaid",
-        "flowchart LR",
-        "A[Raw Data] --> B[Feature Pipeline]",
-        "B --> C[Model Training]",
-        "C --> D[Model Registry]",
-        "D --> E[Serving]",
-        "E --> F[Monitoring]",
-        "```"
-      ].join("\n");
+      return `${commonStart}
+## Problem Framing
+- Görev: optimizasyon + sınıflandırma karması
+
+## Veri İhtiyaçları
+- Talep kayıtları, durum geçmişi, sonuç metrikleri
+
+## Özellik Fikirleri
+- Talep tipi, kanal, zaman, geçmiş çözüm süresi
+
+## Model Önerileri
+- Baseline: lojistik regresyon / karar ağacı
+- Gelişmiş: gradient boosting
+
+## Değerlendirme
+- F1, precision-recall, maliyet bazlı KPI
+
+## Üretime Alma
+- Günlük batch eğitim + drift izlemesi
+
+\`\`\`mermaid
+flowchart LR
+A[Raw Data] --> B[Feature Pipeline]
+B --> C[Model Training]
+C --> D[Model Registry]
+D --> E[Serving]
+E --> F[Monitoring]
+\`\`\``;
   }
 }
 
@@ -210,33 +193,29 @@ export async function POST(req: Request) {
     ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedNotes}\n\nKurallar:\n- Referans notlarıyla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
     : `İŞ: ${task}`;
 
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({
-      output: buildFallbackOutput(role, task, mergedNotes),
-      fallback: true
-    });
-  }
-
   try {
-    const resp = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.4,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userContent }
-      ]
+    const result = await callLlm({
+      system,
+      user: userContent,
+      temperature: 0.4
     });
 
-    const content = resp.choices?.[0]?.message?.content ?? "";
-    return NextResponse.json({ output: content, fallback: false });
+    return NextResponse.json({
+      output: result.text,
+      fallback: false,
+      provider: result.provider
+    });
   } catch (e: unknown) {
-    if (isQuotaLikeError(e)) {
+    const provider = getLlmProvider();
+    const shouldFallback = isQuotaLikeError(e) || isLocalConnectionError(e);
+    if (shouldFallback) {
       return NextResponse.json({
         output: buildFallbackOutput(role, task, mergedNotes),
-        fallback: true
+        fallback: true,
+        provider
       });
     }
     const message = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message, provider }, { status: 500 });
   }
 }
