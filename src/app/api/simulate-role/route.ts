@@ -189,7 +189,7 @@ function workflowDiagram(domain: "trip_cancel_sms" | "generic"): string[] {
       "```mermaid",
       "flowchart LR",
       "A[Sefer İptal Event'i]:::event --> B{Biletli Yolcu Var mı?}:::decision",
-      "B -- Hayır --> Z[İşlem Sonu]:::end",
+      "B -- Hayır --> Z[İşlem Sonu]:::finish",
       "B -- Evet --> C{SMS İzni Var mı?}:::decision",
       "C -- Hayır --> L[Logla: İzin Yok]:::log",
       "C -- Evet --> D[SMS İçeriği Oluştur]:::process",
@@ -211,7 +211,7 @@ function workflowDiagram(domain: "trip_cancel_sms" | "generic"): string[] {
       "classDef retry fill:#fee2e2,stroke:#dc2626,color:#7f1d1d;",
       "classDef risk fill:#ffe4e6,stroke:#e11d48,color:#881337;",
       "classDef log fill:#e2e8f0,stroke:#475569,color:#0f172a;",
-      "classDef end fill:#f1f5f9,stroke:#334155,color:#0f172a;",
+      "classDef finish fill:#f1f5f9,stroke:#334155,color:#0f172a;",
       "```",
       "",
     ];
