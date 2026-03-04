@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import pdf from "pdf-parse";
 
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_PDF_PAGES = 40;
@@ -20,15 +20,11 @@ export async function extractTextFromNotesFile(file: File): Promise<ExtractedNot
   const extension = file.name.toLowerCase();
 
   if (file.type === "application/pdf" || extension.endsWith(".pdf")) {
-    const parser = new PDFParse({ data: buffer });
-    const info = await parser.getInfo();
-    const pageCount = info.total;
+    const result = await pdf(buffer);
+    const pageCount = result.numpages ?? 0;
     if (pageCount > MAX_PDF_PAGES) {
-      await parser.destroy();
       throw new Error(`PDF sayfa limiti aşıldı. En fazla ${MAX_PDF_PAGES} sayfa yüklenebilir.`);
     }
-    const result = await parser.getText();
-    await parser.destroy();
     return { text: result.text.trim(), pageCount };
   }
 
