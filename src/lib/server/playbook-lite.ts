@@ -103,18 +103,25 @@ export async function searchRolePlaybook(
 
   const tokens = tokenize(query);
   const sections = splitSections(markdown);
-  const hits = sections
+  const scored = sections
     .map((s) => ({
       source: file,
       title: s.title,
       excerpt: s.body.slice(0, 900),
       score: scoreSection(`${s.title}\n${s.body}`, tokens),
       index: s.index,
-    }))
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, Math.max(1, topK))
-    .map(({ source, title, excerpt, score }) => ({ source, title, excerpt, score }));
+    }));
+
+  const ranked = [...scored].sort((a, b) => b.score - a.score || a.index - b.index);
+  const positive = ranked.filter((x) => x.score > 0);
+  const selected = (positive.length ? positive : ranked).slice(0, Math.max(1, topK));
+
+  const hits = selected.map(({ source, title, excerpt, score }) => ({
+    source,
+    title,
+    excerpt,
+    score,
+  }));
 
   return hits;
 }
