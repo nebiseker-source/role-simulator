@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
-import { buildSystemPrompt, RoleKey } from "@/lib/roles";
-import { MAX_NOTES_CHARS } from "@/lib/server/notes-config";
-import {
-  callLlm,
-  getLlmProvider,
-  isLocalConnectionError,
-  isQuotaLikeError,
-} from "@/lib/server/llm";
-import { formatRagContext } from "@/lib/server/rag";
-import {
-  formatPlaybookContext,
-  formatPlaybookSources,
-  searchRolePlaybook,
-} from "@/lib/server/playbook-lite";
 
 export const runtime = "nodejs";
+
+type RoleKey =
+  | "business_analyst"
+  | "product_manager"
+  | "product_owner"
+  | "solution_architect"
+  | "data_scientist";
 
 export async function GET() {
   return NextResponse.json(
@@ -42,9 +35,7 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string, sources
   const notesLine = notes
     ? `- Referans notlardan yararlanıldı (özet): ${notes.slice(0, 320)}...`
     : "- Referans not girilmedi, varsayım bazlı çıkarım yapıldı.";
-  const sourceLines = sources.length
-    ? sources.map((s) => `- ${s}`).join("\n")
-    : "- Kaynak bulunamadı";
+  const sourceLines = sources.length ? sources.map((s) => `- ${s}`).join("\n") : "- Kaynak bulunamadı";
 
   return [
     "> Uyarı: Model çağrısı başarısız oldu, fallback çıktısı üretildi.",
@@ -99,13 +90,21 @@ export async function POST(req: Request) {
     fallbackRole = role;
     fallbackTask = task;
 
+    const [{ MAX_NOTES_CHARS }, { buildSystemPrompt }, llm, rag, playbook] = await Promise.all([
+      import("@/lib/server/notes-config"),
+      import("@/lib/roles"),
+      import("@/lib/server/llm"),
+      import("@/lib/server/rag"),
+      import("@/lib/server/playbook-lite"),
+    ]);
+
     const mergedNotes = [notes, fileNotes].filter(Boolean).join("\n\n").slice(0, MAX_NOTES_CHARS);
     const query = [task, mergedNotes].filter(Boolean).join("\n\n");
-    const ragContext = await formatRagContext(query);
+    const ragContext = await rag.formatRagContext(query);
 
-    const playbookHits = await searchRolePlaybook(role, query, 3);
-    const playbookContext = formatPlaybookContext(playbookHits);
-    const playbookSources = formatPlaybookSources(playbookHits);
+    const playbookHits = await playbook.searchRolePlaybook(role, query, 3);
+    const playbookContext = playbook.formatPlaybookContext(playbookHits);
+    const playbookSources = playbook.formatPlaybookSources(playbookHits);
     fallbackSources = playbookSources;
 
     const mergedWithRag = [mergedNotes, ragContext, playbookContext].filter(Boolean).join("\n\n");
@@ -126,7 +125,7 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join("\n\n");
 
-    const result = await callLlm({
+    const result = await llm.callLlm({
       system,
       user: userContent,
       temperature: 0.4,
@@ -139,17 +138,23 @@ export async function POST(req: Request) {
       sources: playbookSources,
     });
   } catch (e: unknown) {
-    const provider = getLlmProvider();
-    const shouldFallback = isQuotaLikeError(e) || isLocalConnectionError(e);
-    if (shouldFallback) {
-      return NextResponse.json({
-        output: buildFallbackOutput(fallbackRole, fallbackTask, fallbackNotes, fallbackSources),
-        fallback: true,
-        provider,
-        sources: fallbackSources,
-      });
+    try {
+      const llm = await import("@/lib/server/llm");
+      const provider = llm.getLlmProvider();
+      const shouldFallback = llm.isQuotaLikeError(e) || llm.isLocalConnectionError(e);
+      if (shouldFallback) {
+        return NextResponse.json({
+          output: buildFallbackOutput(fallbackRole, fallbackTask, fallbackNotes, fallbackSources),
+          fallback: true,
+          provider,
+          sources: fallbackSources,
+        });
+      }
+      const message = e instanceof Error ? e.message : "unknown error";
+      return NextResponse.json({ error: message, provider }, { status: 500 });
+    } catch (inner: unknown) {
+      const message = inner instanceof Error ? inner.message : "unknown error";
+      return NextResponse.json({ error: message, provider: "local" }, { status: 500 });
     }
-    const message = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: message, provider }, { status: 500 });
   }
 }
