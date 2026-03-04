@@ -3,14 +3,15 @@ import {
   AgentStepResult,
   TEAM_SEQUENCE,
   TeamSimulationInput,
-  TeamSimulationOutput
+  TeamSimulationOutput,
 } from "@/lib/agents/types";
-import {
-  callLlm,
-  isLocalConnectionError,
-  isQuotaLikeError
-} from "@/lib/server/llm";
+import { callLlm, isLocalConnectionError, isQuotaLikeError } from "@/lib/server/llm";
 import { formatRagContext } from "@/lib/server/rag";
+import {
+  formatPlaybookContext,
+  formatPlaybookSources,
+  searchRolePlaybook,
+} from "@/lib/server/playbook-lite";
 
 function roleTitle(role: RoleKey): string {
   switch (role) {
@@ -27,13 +28,17 @@ function roleTitle(role: RoleKey): string {
   }
 }
 
-function buildFallback(role: RoleKey, task: string): string {
+function buildFallback(role: RoleKey, task: string, sources: string[]): string {
+  const sourceLines = sources.length ? sources.map((s) => `- ${s}`).join("\n") : "- Kaynak yok";
   return [
     `## ${roleTitle(role)} Fallback Çıktısı`,
-    "> Uyarı: Bu çıktı model çağrısı başarısız olduğu için fallback modunda üretilmiştir.",
+    "> Uyarı: Bu çıktı model çağrısı başarısız olduğu için fallback modunda üretildi.",
     "",
     "### Problem",
     task,
+    "",
+    "### Playbook Kaynakları",
+    sourceLines,
     "",
     "### Plan",
     "- Mevcut durum analizi",
@@ -43,10 +48,10 @@ function buildFallback(role: RoleKey, task: string): string {
     "",
     "```mermaid",
     "flowchart TD",
-    "A[Problem] --> B[Analiz]",
-    "B --> C[Plan]",
-    "C --> D[Uygulama]",
-    "```"
+    "A[Problem] --> B[Playbook]",
+    "B --> C[Analiz]",
+    "C --> D[Uygulama Planı]",
+    "```",
   ].join("\n");
 }
 
@@ -54,6 +59,8 @@ function buildStepUserPrompt(
   role: RoleKey,
   task: string,
   notes: string,
+  playbookContext: string,
+  playbookSources: string[],
   previousOutputs: AgentStepResult[]
 ): string {
   const previousContext = previousOutputs.length
@@ -67,18 +74,20 @@ function buildStepUserPrompt(
     "",
     notes ? `REFERANS NOTLAR:\n${notes}` : "REFERANS NOTLAR: yok",
     "",
+    playbookContext ? `ROL PLAYBOOK KAYNAKLARI:\n${playbookContext}` : "ROL PLAYBOOK KAYNAKLARI: yok",
+    "",
     "ÖNCEKİ ADIM ÖZETLERİ:",
     previousContext,
     "",
     `Bu adımda sadece ${roleTitle(role)} bakış açısından çıktı üret.`,
-    "Çıktı dili: Türkçe, format: Markdown."
+    "Çıktı dili: Türkçe, format: Markdown.",
+    "Çıktının sonunda 'Kullanılan Kaynaklar' başlığıyla kaynakları listele.",
+    playbookSources.length ? playbookSources.join("\n") : "Kaynak etiketi yok.",
   ].join("\n");
 }
 
 function buildSynthesis(stepResults: AgentStepResult[]): string {
-  const sections = stepResults
-    .map((x) => `## ${roleTitle(x.role)}\n${x.output}`)
-    .join("\n\n");
+  const sections = stepResults.map((x) => `## ${roleTitle(x.role)}\n${x.output}`).join("\n\n");
   return [
     "# Team Simulation Final Raporu",
     "",
@@ -88,13 +97,11 @@ function buildSynthesis(stepResults: AgentStepResult[]): string {
     "- Gereksinim ve kapsamı netleştir",
     "- MVP ve sprint planını kilitle",
     "- Mimari ve NFR kararlarını onayla",
-    "- Veri/model izleme planını başlat"
+    "- Veri/model izleme planını başlat",
   ].join("\n");
 }
 
-export async function runTeamSimulation(
-  input: TeamSimulationInput
-): Promise<TeamSimulationOutput> {
+export async function runTeamSimulation(input: TeamSimulationInput): Promise<TeamSimulationOutput> {
   const notes = (input.notes ?? "").trim();
   const task = input.task.trim();
   const ragContext = await formatRagContext([task, notes].filter(Boolean).join("\n\n"));
@@ -104,18 +111,28 @@ export async function runTeamSimulation(
 
   for (const role of TEAM_SEQUENCE) {
     const system = buildSystemPrompt(role);
-    const user = buildStepUserPrompt(role, task, notesWithRag, stepResults);
+    const playbookHits = await searchRolePlaybook(role, [task, notesWithRag].join("\n\n"), 3);
+    const playbookContext = formatPlaybookContext(playbookHits);
+    const playbookSources = formatPlaybookSources(playbookHits);
+    const user = buildStepUserPrompt(
+      role,
+      task,
+      notesWithRag,
+      playbookContext,
+      playbookSources,
+      stepResults
+    );
 
     try {
       const result = await callLlm({
         system,
         user,
-        temperature: 0.3
+        temperature: 0.3,
       });
       stepResults.push({
         role,
-        output: result.text || buildFallback(role, task),
-        fallbackUsed: !result.text
+        output: result.text || buildFallback(role, task, playbookSources),
+        fallbackUsed: !result.text,
       });
       anyFallback = anyFallback || !result.text;
     } catch (err: unknown) {
@@ -126,8 +143,8 @@ export async function runTeamSimulation(
       anyFallback = true;
       stepResults.push({
         role,
-        output: buildFallback(role, task),
-        fallbackUsed: true
+        output: buildFallback(role, task, playbookSources),
+        fallbackUsed: true,
       });
     }
   }
@@ -135,6 +152,6 @@ export async function runTeamSimulation(
   return {
     steps: stepResults,
     finalSynthesis: buildSynthesis(stepResults),
-    fallbackUsed: anyFallback
+    fallbackUsed: anyFallback,
   };
 }
