@@ -9,9 +9,17 @@ import {
 } from "@/lib/server/llm";
 import { formatRagContext } from "@/lib/server/rag";
 
+export async function GET() {
+  return NextResponse.json(
+    { error: "Method not allowed. /api/simulate için POST kullan." },
+    { status: 405 }
+  );
+}
+
 function asRoleKey(value: string): RoleKey | null {
   const roles: RoleKey[] = [
     "business_analyst",
+    "product_manager",
     "product_owner",
     "solution_architect",
     "data_scientist"
@@ -25,7 +33,7 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
     : "- Referans not girilmedi, varsayım bazlı çıkarım yapıldı.";
 
   const commonStart = [
-    `> Uyarı: Model çağrısı başarısız oldu, fallback çıktı üretildi.`,
+    "> Uyarı: Model çağrısı başarısız oldu, fallback çıktı üretildi.",
     `> Rol: ${role}`,
     "",
     "## Problem Tanımı",
@@ -40,136 +48,130 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
 
   switch (role) {
     case "business_analyst":
-      return `${commonStart}
-## Stakeholder Listesi
-- İş birimi yöneticisi
-- Operasyon ekibi
-- Müşteri deneyimi ekibi
-- Yazılım geliştirme ekibi
+      return [
+        commonStart,
+        "## Stakeholder Listesi",
+        "- İş birimi yöneticisi",
+        "- Operasyon ekibi",
+        "- Müşteri deneyimi ekibi",
+        "- Yazılım geliştirme ekibi",
+        "",
+        "## Functional Requirements",
+        "- Talep girişi, durum takibi ve bildirim mekanizması",
+        "- Rol bazlı ekran ve yetki kontrolü",
+        "- Raporlama ve denetim kaydı",
+        "",
+        "## Test Senaryoları",
+        "- Pozitif: geçerli talep ile kayıt oluşur",
+        "- Negatif: zorunlu alanlar boşken kayıt engellenir",
+        "",
+        "```mermaid",
+        "flowchart TD",
+        "A[Talep Girişi] --> B[Ön Değerlendirme]",
+        "B --> C{Uygun mu?}",
+        "C -- Evet --> D[İşleme Al]",
+        "C -- Hayır --> E[Revizyon İsteği]",
+        "D --> F[Sonuç Bildirimi]",
+        "```"
+      ].join("\n");
 
-## Functional Requirements
-- Talep girişi, durum takibi ve bildirim mekanizması
-- Rol bazlı ekran ve yetki kontrolü
-- Raporlama ve denetim kaydı
-
-## Non-Functional Requirements
-- Performans: kritik ekran yanıt süresi < 2 sn
-- Güvenlik: rol bazlı erişim + audit log
-- Erişilebilirlik: temel WCAG uyumu
-
-## User Story + Acceptance Criteria
-- Kullanıcı olarak talebimi oluşturmak istiyorum, böylece süreci takip edebilirim.
-- Given geçerli veri, When kaydet tıklanır, Then talep ID üretilir ve durum 'Açık' olur.
-
-## Riskler ve Önlemler
-- Risk: Kapsam kayması -> Önlem: MVP sınırı ve değişiklik kurulu
-- Risk: Veri kalitesi -> Önlem: zorunlu alan ve doğrulama kuralları
-
-## Tahmini Plan (4 hafta)
-- Hafta 1: As-Is/To-Be + gereksinim onayı
-- Hafta 2: User story ve acceptance kriterleri
-- Hafta 3: UAT senaryoları + teknik handoff
-- Hafta 4: Pilot ve iyileştirme
-
-\`\`\`mermaid
-flowchart TD
-A[Talep Girişi] --> B[Ön Değerlendirme]
-B --> C{Uygun mu?}
-C -- Evet --> D[İşleme Al]
-C -- Hayır --> E[Revizyon İsteği]
-D --> F[Sonuç Bildirimi]
-\`\`\``;
+    case "product_manager":
+      return [
+        commonStart,
+        "## Hedef ve KPI",
+        "- North Star: rapor çıktısının iş kararına dönüşme oranı",
+        "- KPI: aktif kullanıcı ve export oranı",
+        "",
+        "## Ürün Stratejisi",
+        "- Faz 1: demo mode ve çekirdek rol çıktıları",
+        "- Faz 2: RAG kalitesi ve iş akışı",
+        "- Faz 3: ekip planı ve işbirliği",
+        "",
+        "## Görev Kırılımı",
+        "- PM: roadmap ve önceliklendirme",
+        "- UX: çıktı paneli ve kullanılabilirlik",
+        "- Eng: API stabilitesi ve gözlemlenebilirlik",
+        "",
+        "```mermaid",
+        "flowchart LR",
+        "F[Fikir] --> M[MVP]",
+        "M --> V[Doğrulama]",
+        "V --> S[Ölçekleme]",
+        "```"
+      ].join("\n");
 
     case "product_owner":
-      return `${commonStart}
-## Hedef ve Başarı Metrikleri
-- KPI-1: süreç tamamlama süresinde %20 azalma
-- KPI-2: self-service kullanımında %30 artış
-
-## MVP Tanımı
-- Temel talep oluşturma ve durum takibi
-- Bildirim ve alternatif önerisi
-
-## Backlog (Epic > Feature > Story)
-- Epic: Talep Yönetimi
-- Feature: Talep Oluşturma
-- Story: Kullanıcı talep formunu doldurur ve kaydeder
-
-## Önceliklendirme (RICE)
-- Talep oluşturma: Reach yüksek, Effort düşük -> Öncelik 1
-- Gelişmiş raporlama: Reach orta, Effort orta -> Öncelik 2
-
-## Release Plan
-- Sprint 1: temel akışlar
-- Sprint 2: bildirim + iyileştirme
-
-\`\`\`mermaid
-flowchart LR
-U[Kullanıcı] --> F[Form Doldur]
-F --> S[Sistem İşler]
-S --> N[Bildirim]
-N --> U
-\`\`\``;
+      return [
+        commonStart,
+        "## Hedef ve Başarı Metrikleri",
+        "- KPI-1: süreç tamamlama süresinde %20 azalma",
+        "- KPI-2: self-service kullanımında %30 artış",
+        "",
+        "## Backlog (Epic > Feature > Story)",
+        "- Epic: Talep Yönetimi",
+        "- Feature: Talep Oluşturma",
+        "- Story: Kullanıcı talep formunu doldurur ve kaydeder",
+        "",
+        "## Test Senaryoları",
+        "- Pozitif: durum takibi ekranında doğru lifecycle görünür",
+        "- Negatif: geçersiz rol ile erişim engellenir",
+        "",
+        "```mermaid",
+        "flowchart LR",
+        "U[Kullanıcı] --> F[Form Doldur]",
+        "F --> S[Sistem İşler]",
+        "S --> N[Bildirim]",
+        "N --> U",
+        "```"
+      ].join("\n");
 
     case "solution_architect":
-      return `${commonStart}
-## Mimari Hedefler
-- Ölçeklenebilir, izlenebilir ve güvenli mimari
-
-## Bileşenler
-- Web/Mobile UI
-- API Gateway
-- İş kuralları servisi
-- Notification servisi
-- Raporlama DB
-
-## API Taslakları
-- POST /requests
-- GET /requests/{id}
-- POST /requests/{id}/notify
-
-## NFR Kararları
-- Authn/Authz: JWT + RBAC
-- Rate limit: 100 req/min per token
-- Cache: sık sorgular için 60 sn
-
-\`\`\`mermaid
-flowchart TD
-UI --> APIGW
-APIGW --> APP[Application Service]
-APP --> DB[(PostgreSQL)]
-APP --> NOTIF[Notification Service]
-\`\`\``;
+      return [
+        commonStart,
+        "## Mimari Hedefler",
+        "- Ölçeklenebilir, izlenebilir ve güvenli mimari",
+        "",
+        "## Bileşenler",
+        "- Web/Mobile UI",
+        "- API Gateway",
+        "- İş kuralları servisi",
+        "- Notification servisi",
+        "",
+        "## Test Senaryoları",
+        "- Entegrasyon testi: API + servisler",
+        "- Yük testi: kritik endpoint latensi",
+        "",
+        "```mermaid",
+        "flowchart TD",
+        "UI --> APIGW",
+        "APIGW --> APP[Application Service]",
+        "APP --> DB[(PostgreSQL)]",
+        "APP --> NOTIF[Notification Service]",
+        "```"
+      ].join("\n");
 
     case "data_scientist":
-      return `${commonStart}
-## Problem Framing
-- Görev: optimizasyon + sınıflandırma karması
-
-## Veri İhtiyaçları
-- Talep kayıtları, durum geçmişi, sonuç metrikleri
-
-## Özellik Fikirleri
-- Talep tipi, kanal, zaman, geçmiş çözüm süresi
-
-## Model Önerileri
-- Baseline: lojistik regresyon / karar ağacı
-- Gelişmiş: gradient boosting
-
-## Değerlendirme
-- F1, precision-recall, maliyet bazlı KPI
-
-## Üretime Alma
-- Günlük batch eğitim + drift izlemesi
-
-\`\`\`mermaid
-flowchart LR
-A[Raw Data] --> B[Feature Pipeline]
-B --> C[Model Training]
-C --> D[Model Registry]
-D --> E[Serving]
-E --> F[Monitoring]
-\`\`\``;
+      return [
+        commonStart,
+        "## Problem Framing",
+        "- Görev: optimizasyon + sınıflandırma karması",
+        "",
+        "## Veri İhtiyaçları",
+        "- Talep kayıtları, durum geçmişi, sonuç metrikleri",
+        "",
+        "## Test Senaryoları",
+        "- Veri sızıntısı kontrolü",
+        "- Drift alarmı eşik testi",
+        "",
+        "```mermaid",
+        "flowchart LR",
+        "A[Raw Data] --> B[Feature Pipeline]",
+        "B --> C[Model Training]",
+        "C --> D[Model Registry]",
+        "D --> E[Serving]",
+        "E --> F[Monitoring]",
+        "```"
+      ].join("\n");
   }
 }
 
@@ -177,6 +179,7 @@ export async function POST(req: Request) {
   let fallbackRole: RoleKey = "business_analyst";
   let fallbackTask = "Model çağrısı sırasında hata oluştu.";
   let fallbackNotes = "";
+
   try {
     const body = await req.json();
     const role = asRoleKey(String(body.role ?? ""));

@@ -2,6 +2,7 @@ import { RoleKey } from "@/lib/roles";
 
 export const TEAM_SEQUENCE: RoleKey[] = [
   "business_analyst",
+  "product_manager",
   "product_owner",
   "solution_architect",
   "data_scientist"

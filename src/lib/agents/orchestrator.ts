@@ -16,6 +16,8 @@ function roleTitle(role: RoleKey): string {
   switch (role) {
     case "business_analyst":
       return "İş Analisti";
+    case "product_manager":
+      return "Product Manager";
     case "product_owner":
       return "Product Owner";
     case "solution_architect":
@@ -56,10 +58,7 @@ function buildStepUserPrompt(
 ): string {
   const previousContext = previousOutputs.length
     ? previousOutputs
-        .map(
-          (x) =>
-            `### ${roleTitle(x.role)} Çıktısı\n${x.output.slice(0, 2500)}`
-        )
+        .map((x) => `### ${roleTitle(x.role)} Çıktısı\n${x.output.slice(0, 2500)}`)
         .join("\n\n")
     : "Önceki adım çıktısı yok.";
 

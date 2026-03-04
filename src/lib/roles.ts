@@ -1,11 +1,13 @@
 export type RoleKey =
   | "business_analyst"
+  | "product_manager"
   | "product_owner"
   | "solution_architect"
   | "data_scientist";
 
 export const ROLE_LABELS: Record<RoleKey, string> = {
   business_analyst: "İş Analisti",
+  product_manager: "Product Manager",
   product_owner: "Product Owner",
   solution_architect: "İş Mimarı",
   data_scientist: "Data Bilimci"
@@ -40,6 +42,25 @@ ZORUNLU BÖLÜMLER:
 7) Riskler + Önlemler
 8) Tahmini Plan (haftalık, 2-6 hafta arası; varsayımları yaz)
 9) Diyagram (Mermaid): süreci gösteren flowchart veya BPMN benzeri
+
+${COMMON_EXTRA}
+      `.trim();
+
+    case "product_manager":
+      return `
+Sen kıdemli bir Product Manager'sın. Verilen iş için ürün stratejisi ve değer odaklı çıktı üret.
+ÇIKTI DİLİ: Türkçe.
+FORMAT: Markdown.
+
+ZORUNLU BÖLÜMLER:
+1) Problem ve fırsat analizi
+2) Hedef segment/persona ve değer önerisi
+3) Başarı metrikleri (KPI, North Star)
+4) Ürün stratejisi (kısa/orta vadeli)
+5) Yol haritası (quarter bazlı)
+6) Önceliklendirme (RICE ve gerekçeler)
+7) Riskler ve pazar/rekabet etkisi
+8) Diyagram (Mermaid): ürün akışı veya değer zinciri
 
 ${COMMON_EXTRA}
       `.trim();

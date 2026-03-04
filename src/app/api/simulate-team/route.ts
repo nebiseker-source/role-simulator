@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { runTeamSimulation } from "@/lib/agents/orchestrator";
 
+export async function GET() {
+  return NextResponse.json(
+    { error: "Method not allowed. /api/simulate-team için POST kullan." },
+    { status: 405 }
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
