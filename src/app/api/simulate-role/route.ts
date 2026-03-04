@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
-import { RoleKey } from "@/lib/roles";
-import { formatPlaybookSources, searchRolePlaybook } from "@/lib/server/playbook-lite";
+import { buildSystemPrompt, RoleKey } from "@/lib/roles";
+import { callLlm, isLocalConnectionError, isQuotaLikeError } from "@/lib/server/llm";
+import { formatRagContext, searchKnowledge } from "@/lib/server/rag";
+import {
+  formatPlaybookContext,
+  formatPlaybookSources,
+  searchRolePlaybook,
+} from "@/lib/server/playbook-lite";
 
 export const runtime = "nodejs";
 
@@ -261,6 +267,58 @@ function buildOutput(role: RoleKey, task: string, notes: string, sources: string
   ].join("\n");
 }
 
+function buildSingleRoleUserPrompt(input: {
+  role: RoleKey;
+  task: string;
+  notes: string;
+  playbookContext: string;
+  playbookSources: string[];
+  ragContext: string;
+  ragSources: string[];
+}): string {
+  const sources = [...input.playbookSources, ...input.ragSources];
+  const sourceText = sources.length ? sources.join("\n") : "Kaynak etiketi yok.";
+
+  return [
+    `ROL: ${roleTitle(input.role)}`,
+    `GOREV:\n${input.task}`,
+    input.notes ? `KULLANICI NOTLARI:\n${input.notes}` : "KULLANICI NOTLARI: yok.",
+    input.playbookContext
+      ? `PLAYBOOK BAGLAMI:\n${input.playbookContext}`
+      : "PLAYBOOK BAGLAMI: yok.",
+    input.ragContext ? `RAG BAGLAMI:\n${input.ragContext}` : "RAG BAGLAMI: yok.",
+    "CIKTI KURALI: Turkce Markdown kullan.",
+    "ZORUNLU BASLIKLAR:\n1) Problem Ozeti\n2) Referans Not Ozeti\n3) Rol Bazli Analiz\n4) Uygulanabilir Plan\n5) Ekip Bazli Gorev Dagilimi (tablo)\n6) Test Senaryolari (tablo)\n7) Is Akisi Diyagrami (mermaid, renkli classDef)\n8) Playbooktan Cekilen Bolumler\n9) Kullanilan Kaynaklar",
+    "Kaynaklari en sonda aynen bu etiketlerle listele:",
+    sourceText,
+  ].join("\n\n");
+}
+
+function ensureOutputSections(
+  output: string,
+  task: string,
+  role: RoleKey,
+  notes: string,
+  sources: string[],
+  excerpts: string[]
+): string {
+  const trimmed = output.trim();
+  if (!trimmed) {
+    return buildOutput(role, task, notes, sources, excerpts);
+  }
+
+  let text = trimmed;
+  if (!/```mermaid/i.test(text)) {
+    text += `\n\n${workflowDiagram(detectDomain(task)).join("\n")}`;
+  }
+  if (!/Kullan[aı]lan Kaynaklar/i.test(text)) {
+    const sourceLines = sources.length ? sources.map((s) => `- ${s}`).join("\n") : "- Kaynak bulunamadı";
+    text += `\n\n## 9) Kullanılan Kaynaklar\n${sourceLines}`;
+  }
+
+  return text;
+}
+
 export async function GET() {
   return NextResponse.json(
     { error: "Method not allowed. /api/simulate-role için POST kullan." },
@@ -285,18 +343,67 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "role ve task zorunlu" }, { status: 400 });
     }
 
-    const hits = await searchRolePlaybook(role, [task, mergedNotes].filter(Boolean).join("\n\n"), 3);
-    const sources = formatPlaybookSources(hits);
-    const excerpts = hits.map((h) => `${h.title}: ${h.excerpt.slice(0, 160).replace(/\n/g, " ")}...`);
+    const query = [task, mergedNotes].filter(Boolean).join("\n\n");
+    const playbookHits = await searchRolePlaybook(role, query, 3);
+    const playbookContext = formatPlaybookContext(playbookHits);
+    const playbookSources = formatPlaybookSources(playbookHits);
+    const excerpts = playbookHits.map((h) => `${h.title}: ${h.excerpt.slice(0, 160).replace(/\n/g, " ")}...`);
 
-    return NextResponse.json({
-      output: buildOutput(role, task, mergedNotes, sources, excerpts),
-      fallback: false,
-      provider: "playbook-lite",
-      sources,
+    const ragContext = await formatRagContext(query, 5);
+    const ragHits = await searchKnowledge(query, 5).catch(() => []);
+    const ragSources = ragHits.map(
+      (h, i) => `RAG ${i + 1}: ${h.title} (parça ${h.chunkIndex + 1})`
+    );
+
+    const allSources = [...playbookSources, ...ragSources];
+    const fallbackOutput = buildOutput(role, task, mergedNotes, allSources, excerpts);
+    const system = `${buildSystemPrompt(role)}\n\nDİL: Türkçe. FORMAT: Markdown.\nÇıktı pratik, uygulanabilir ve görev/takvim odaklı olmalı.`;
+    const user = buildSingleRoleUserPrompt({
+      role,
+      task,
+      notes: mergedNotes,
+      playbookContext,
+      playbookSources,
+      ragContext,
+      ragSources,
     });
+
+    try {
+      const llm = await callLlm({
+        system,
+        user,
+        temperature: 0.25,
+      });
+
+      const output = ensureOutputSections(
+        llm.text,
+        task,
+        role,
+        mergedNotes,
+        allSources,
+        excerpts
+      );
+
+      return NextResponse.json({
+        output,
+        fallback: !llm.text.trim(),
+        provider: llm.provider,
+        sources: allSources,
+      });
+    } catch (err: unknown) {
+      const shouldFallback = isQuotaLikeError(err) || isLocalConnectionError(err);
+      if (!shouldFallback) {
+        throw err;
+      }
+      return NextResponse.json({
+        output: fallbackOutput,
+        fallback: true,
+        provider: "playbook-lite",
+        sources: allSources,
+      });
+    }
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: message, provider: "playbook-lite" }, { status: 500 });
+    return NextResponse.json({ error: message, provider: "simulate-role" }, { status: 500 });
   }
 }
