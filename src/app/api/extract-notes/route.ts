@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  extractTextFromNotesFile,
-  MAX_NOTES_CHARS
-} from "@/lib/server/notes-extractor";
+import { extractTextFromNotesFile, MAX_NOTES_CHARS } from "@/lib/server/notes-extractor";
 
 export const runtime = "nodejs";
 
@@ -23,7 +20,7 @@ export async function POST(req: Request) {
       fileSize: uploaded.size,
       pageCount: extracted.pageCount ?? null,
       extractedText: clippedText,
-      clipped: extracted.text.length > MAX_NOTES_CHARS
+      clipped: extracted.text.length > MAX_NOTES_CHARS,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Dosya işlenemedi.";

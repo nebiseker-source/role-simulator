@@ -5,7 +5,7 @@ import {
   callLlm,
   getLlmProvider,
   isLocalConnectionError,
-  isQuotaLikeError
+  isQuotaLikeError,
 } from "@/lib/server/llm";
 import { formatRagContext } from "@/lib/server/rag";
 
@@ -22,7 +22,7 @@ function asRoleKey(value: string): RoleKey | null {
     "product_manager",
     "product_owner",
     "solution_architect",
-    "data_scientist"
+    "data_scientist",
   ];
   return roles.includes(value as RoleKey) ? (value as RoleKey) : null;
 }
@@ -32,8 +32,13 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
     ? `- Referans notlardan yararlanıldı (özet): ${notes.slice(0, 320)}...`
     : "- Referans not girilmedi, varsayım bazlı çıkarım yapıldı.";
 
+  const coloredHeader = [
+    "%%{init: {'theme':'base','themeVariables': {'primaryColor':'#7dd3fc','primaryBorderColor':'#0284c7','lineColor':'#0f172a','secondaryColor':'#bbf7d0','tertiaryColor':'#fde68a'}}}%%",
+    "flowchart TD",
+  ];
+
   const commonStart = [
-    "> Uyarı: Model çağrısı başarısız oldu, fallback çıktı üretildi.",
+    "> Uyarı: Model çağrısı başarısız oldu, fallback çıktısı üretildi.",
     `> Rol: ${role}`,
     "",
     "## Problem Tanımı",
@@ -43,7 +48,20 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
     "- Ekip çapraz fonksiyonel ve haftalık sprintlerle çalışıyor.",
     "- İş hedefi ölçülebilir KPI'larla takip edilecek.",
     notesLine,
-    ""
+    "",
+    "## Görev Kırılımı (Task Breakdown)",
+    "- Analiz: Gereksinimlerin netleştirilmesi (1-2 gün)",
+    "- Tasarım: Akış ve diyagramların hazırlanması (1 gün)",
+    "- Uygulama: API/UI düzenlemeleri (2-3 gün)",
+    "- Doğrulama: Test ve kabul adımları (1 gün)",
+    "",
+    "## Test Senaryoları",
+    "- Pozitif: Geçerli veri ile simülasyon çıktısı üretilir.",
+    "- Negatif: Rol veya görev boşken validasyon hatası döner.",
+    "- Negatif: Desteklenmeyen dosya yüklemesinde hata mesajı döner.",
+    "- Pozitif: Mermaid bloğu varsa diyagram sekmesinde çizilir.",
+    "- Pozitif: Görev/Test sekmeleri ilgili bölümü filtreler.",
+    "",
   ].join("\n");
 
   switch (role) {
@@ -61,18 +79,19 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
         "- Rol bazlı ekran ve yetki kontrolü",
         "- Raporlama ve denetim kaydı",
         "",
-        "## Test Senaryoları",
-        "- Pozitif: geçerli talep ile kayıt oluşur",
-        "- Negatif: zorunlu alanlar boşken kayıt engellenir",
-        "",
         "```mermaid",
-        "flowchart TD",
-        "A[Talep Girişi] --> B[Ön Değerlendirme]",
-        "B --> C{Uygun mu?}",
-        "C -- Evet --> D[İşleme Al]",
-        "C -- Hayır --> E[Revizyon İsteği]",
-        "D --> F[Sonuç Bildirimi]",
-        "```"
+        ...coloredHeader,
+        "A[Talep Girişi]:::start --> B[Ön Değerlendirme]:::step",
+        "B --> C{Uygun mu?}:::decision",
+        "C -- Evet --> D[İşleme Al]:::step",
+        "C -- Hayır --> E[Revizyon İsteği]:::risk",
+        "D --> F[Sonuç Bildirimi]:::done",
+        "classDef start fill:#bbf7d0,stroke:#16a34a,color:#052e16;",
+        "classDef step fill:#dbeafe,stroke:#2563eb,color:#172554;",
+        "classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f;",
+        "classDef risk fill:#fee2e2,stroke:#dc2626,color:#7f1d1d;",
+        "classDef done fill:#cffafe,stroke:#0891b2,color:#083344;",
+        "```",
       ].join("\n");
 
     case "product_manager":
@@ -87,17 +106,16 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
         "- Faz 2: RAG kalitesi ve iş akışı",
         "- Faz 3: ekip planı ve işbirliği",
         "",
-        "## Görev Kırılımı",
-        "- PM: roadmap ve önceliklendirme",
-        "- UX: çıktı paneli ve kullanılabilirlik",
-        "- Eng: API stabilitesi ve gözlemlenebilirlik",
-        "",
         "```mermaid",
-        "flowchart LR",
-        "F[Fikir] --> M[MVP]",
-        "M --> V[Doğrulama]",
-        "V --> S[Ölçekleme]",
-        "```"
+        ...coloredHeader,
+        "F[Fikir]:::start --> M[MVP]:::step",
+        "M --> V[Doğrulama]:::decision",
+        "V --> S[Ölçekleme]:::done",
+        "classDef start fill:#bbf7d0,stroke:#16a34a,color:#052e16;",
+        "classDef step fill:#dbeafe,stroke:#2563eb,color:#172554;",
+        "classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f;",
+        "classDef done fill:#cffafe,stroke:#0891b2,color:#083344;",
+        "```",
       ].join("\n");
 
     case "product_owner":
@@ -112,17 +130,16 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
         "- Feature: Talep Oluşturma",
         "- Story: Kullanıcı talep formunu doldurur ve kaydeder",
         "",
-        "## Test Senaryoları",
-        "- Pozitif: durum takibi ekranında doğru lifecycle görünür",
-        "- Negatif: geçersiz rol ile erişim engellenir",
-        "",
         "```mermaid",
-        "flowchart LR",
-        "U[Kullanıcı] --> F[Form Doldur]",
-        "F --> S[Sistem İşler]",
-        "S --> N[Bildirim]",
+        ...coloredHeader,
+        "U[Kullanıcı]:::start --> F[Form Doldur]:::step",
+        "F --> S[Sistem İşler]:::step",
+        "S --> N[Bildirim]:::done",
         "N --> U",
-        "```"
+        "classDef start fill:#bbf7d0,stroke:#16a34a,color:#052e16;",
+        "classDef step fill:#dbeafe,stroke:#2563eb,color:#172554;",
+        "classDef done fill:#cffafe,stroke:#0891b2,color:#083344;",
+        "```",
       ].join("\n");
 
     case "solution_architect":
@@ -137,17 +154,17 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
         "- İş kuralları servisi",
         "- Notification servisi",
         "",
-        "## Test Senaryoları",
-        "- Entegrasyon testi: API + servisler",
-        "- Yük testi: kritik endpoint latensi",
-        "",
         "```mermaid",
-        "flowchart TD",
-        "UI --> APIGW",
-        "APIGW --> APP[Application Service]",
-        "APP --> DB[(PostgreSQL)]",
-        "APP --> NOTIF[Notification Service]",
-        "```"
+        ...coloredHeader,
+        "UI[Web/Mobile UI]:::start --> APIGW[API Gateway]:::step",
+        "APIGW --> APP[Application Service]:::step",
+        "APP --> DB[(PostgreSQL)]:::decision",
+        "APP --> NOTIF[Notification Service]:::done",
+        "classDef start fill:#bbf7d0,stroke:#16a34a,color:#052e16;",
+        "classDef step fill:#dbeafe,stroke:#2563eb,color:#172554;",
+        "classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f;",
+        "classDef done fill:#cffafe,stroke:#0891b2,color:#083344;",
+        "```",
       ].join("\n");
 
     case "data_scientist":
@@ -159,18 +176,18 @@ function buildFallbackOutput(role: RoleKey, task: string, notes: string): string
         "## Veri İhtiyaçları",
         "- Talep kayıtları, durum geçmişi, sonuç metrikleri",
         "",
-        "## Test Senaryoları",
-        "- Veri sızıntısı kontrolü",
-        "- Drift alarmı eşik testi",
-        "",
         "```mermaid",
-        "flowchart LR",
-        "A[Raw Data] --> B[Feature Pipeline]",
-        "B --> C[Model Training]",
-        "C --> D[Model Registry]",
-        "D --> E[Serving]",
-        "E --> F[Monitoring]",
-        "```"
+        ...coloredHeader,
+        "A[Raw Data]:::start --> B[Feature Pipeline]:::step",
+        "B --> C[Model Training]:::step",
+        "C --> D[Model Registry]:::decision",
+        "D --> E[Serving]:::done",
+        "E --> F[Monitoring]:::done",
+        "classDef start fill:#bbf7d0,stroke:#16a34a,color:#052e16;",
+        "classDef step fill:#dbeafe,stroke:#2563eb,color:#172554;",
+        "classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f;",
+        "classDef done fill:#cffafe,stroke:#0891b2,color:#083344;",
+        "```",
       ].join("\n");
   }
 }
@@ -194,10 +211,7 @@ export async function POST(req: Request) {
     fallbackRole = role;
     fallbackTask = task;
 
-    const mergedNotes = [notes, fileNotes]
-      .filter(Boolean)
-      .join("\n\n")
-      .slice(0, MAX_NOTES_CHARS);
+    const mergedNotes = [notes, fileNotes].filter(Boolean).join("\n\n").slice(0, MAX_NOTES_CHARS);
     const query = [task, mergedNotes].filter(Boolean).join("\n\n");
     const ragContext = await formatRagContext(query);
     const mergedWithRag = [mergedNotes, ragContext].filter(Boolean).join("\n\n");
@@ -205,19 +219,19 @@ export async function POST(req: Request) {
 
     const system = buildSystemPrompt(role);
     const userContent = mergedWithRag
-      ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedWithRag}\n\nKurallar:\n- Referans notlarıyla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
+      ? `İŞ: ${task}\n\nREFERANS DERS NOTLARI:\n${mergedWithRag}\n\nKurallar:\n- Referans notlarla tutarlı ol.\n- Bilgi eksikse varsayımını açıkça belirt.`
       : `İŞ: ${task}`;
 
     const result = await callLlm({
       system,
       user: userContent,
-      temperature: 0.4
+      temperature: 0.4,
     });
 
     return NextResponse.json({
       output: result.text,
       fallback: false,
-      provider: result.provider
+      provider: result.provider,
     });
   } catch (e: unknown) {
     const provider = getLlmProvider();
@@ -226,7 +240,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         output: buildFallbackOutput(fallbackRole, fallbackTask, fallbackNotes),
         fallback: true,
-        provider
+        provider,
       });
     }
     const message = e instanceof Error ? e.message : "unknown error";

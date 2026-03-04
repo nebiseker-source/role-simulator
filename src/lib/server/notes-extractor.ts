@@ -33,8 +33,7 @@ export async function extractTextFromNotesFile(file: File): Promise<ExtractedNot
   }
 
   if (
-    file.type ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     extension.endsWith(".docx")
   ) {
     const result = await mammoth.extractRawText({ buffer });

@@ -43,7 +43,7 @@ export default function MermaidChart({ chart }: MermaidChartProps) {
         }
       } catch (e: unknown) {
         const message =
-          e instanceof Error ? e.message : "Mermaid diyagrami olusturulamadi.";
+          e instanceof Error ? e.message : "Mermaid diyagramı oluşturulamadı.";
         if (!canceled) {
           setSvg("");
           setError(message);
@@ -61,11 +61,11 @@ export default function MermaidChart({ chart }: MermaidChartProps) {
   }, [chart, id]);
 
   if (error) {
-    return <pre className="mermaid-fallback">Diyagram hatasi: {error}</pre>;
+    return <pre className="mermaid-fallback">Diyagram hatası: {error}</pre>;
   }
 
   if (!svg) {
-    return <div className="mermaid-loading">Diyagram ciziliyor...</div>;
+    return <div className="mermaid-loading">Diyagram çiziliyor...</div>;
   }
 
   return (

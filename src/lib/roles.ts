@@ -10,18 +10,18 @@ export const ROLE_LABELS: Record<RoleKey, string> = {
   product_manager: "Product Manager",
   product_owner: "Product Owner",
   solution_architect: "İş Mimarı",
-  data_scientist: "Data Bilimci"
+  data_scientist: "Data Bilimci",
 };
 
 const COMMON_EXTRA = `
 EK ZORUNLU BÖLÜMLER:
-10) Görev Kırılımı (Task Breakdown - kim/ne zaman/ne teslim eder)
-11) Test Senaryoları (en az 5 madde, pozitif/negatif)
+10) Görev Kırılımı (Task Breakdown: sorumlu, süre, teslimat)
+11) Test Senaryoları (en az 5 madde; pozitif/negatif)
 12) Teslimat Çıktıları (doküman, diyagram, backlog, test checklist)
 
-Diyagramları renkli üret:
+Diyagramlar renkli olmalı:
 - Mermaid içinde classDef veya style kullan
-- Gerekirse mermaid init bloğu ile themeVariables tanımla
+- Gerekirse mermaid init ile themeVariables tanımla
 `;
 
 export function buildSystemPrompt(role: RoleKey) {
@@ -40,11 +40,11 @@ ZORUNLU BÖLÜMLER:
 5) Non-Functional Requirements (performans, güvenlik, loglama, erişilebilirlik vb.)
 6) User Story'ler + Acceptance Criteria (Given/When/Then)
 7) Riskler + Önlemler
-8) Tahmini Plan (haftalık, 2-6 hafta arası; varsayımları yaz)
-9) Diyagram (Mermaid): süreci gösteren flowchart veya BPMN benzeri
+8) Tahmini Plan (haftalık, 2-6 hafta; varsayımlar yazılmalı)
+9) Diyagram (Mermaid): süreç akışı veya BPMN benzeri
 
 ${COMMON_EXTRA}
-      `.trim();
+`.trim();
 
     case "product_manager":
       return `
@@ -63,7 +63,7 @@ ZORUNLU BÖLÜMLER:
 8) Diyagram (Mermaid): ürün akışı veya değer zinciri
 
 ${COMMON_EXTRA}
-      `.trim();
+`.trim();
 
     case "product_owner":
       return `
@@ -76,14 +76,14 @@ ZORUNLU BÖLÜMLER:
 2) Kullanıcı Personası + Problem
 3) MVP Tanımı
 4) Backlog (Epic > Feature > Story)
-5) Önceliklendirme (RICE veya MoSCoW ile)
+5) Önceliklendirme (RICE veya MoSCoW)
 6) Release Plan (sprint bazlı)
 7) Riskler ve bağımlılıklar
 8) Diyagram (Mermaid): kullanıcı akışı
 9) Sprint hedefleri + DoD
 
 ${COMMON_EXTRA}
-      `.trim();
+`.trim();
 
     case "solution_architect":
       return `
@@ -94,7 +94,7 @@ FORMAT: Markdown.
 ZORUNLU BÖLÜMLER:
 1) Mimari Hedefler (ölçek, güvenlik, maliyet, bakım)
 2) Context Diagram (Mermaid)
-3) Component Diagram (Mermaid flowchart ile de olur)
+3) Component Diagram (Mermaid)
 4) Veri Akışı ve Entegrasyonlar
 5) API Taslakları (endpoint örnekleri)
 6) Non-functional kararlar (cache, rate-limit, authn/authz)
@@ -102,7 +102,7 @@ ZORUNLU BÖLÜMLER:
 8) Dağıtım yaklaşımı (env/prod/monitoring)
 
 ${COMMON_EXTRA}
-      `.trim();
+`.trim();
 
     case "data_scientist":
       return `
@@ -112,16 +112,16 @@ FORMAT: Markdown.
 
 ZORUNLU BÖLÜMLER:
 1) Problem Framing (regresyon/sınıflandırma/optimizasyon vb.)
-2) Veri İhtiyaçları (tablo alanları, kaynaklar)
+2) Veri İhtiyaçları (alanlar, kaynaklar)
 3) Özellik (feature) fikirleri
 4) Model / Yöntem önerileri (baseline + gelişmiş)
 5) Değerlendirme metrikleri
 6) Deney tasarımı (A/B, offline eval)
 7) Üretime alma (pipeline, monitoring)
 8) Diyagram (Mermaid): pipeline akışı
-9) Model riskleri ve sapma (drift) kontrolü
+9) Model riskleri ve drift kontrolü
 
 ${COMMON_EXTRA}
-      `.trim();
+`.trim();
   }
 }
