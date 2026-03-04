@@ -12,11 +12,11 @@ type PlaybookHit = {
 const PLAYBOOK_DIR = path.join(process.cwd(), "playbooks");
 
 const ROLE_PLAYBOOK_FILE: Record<RoleKey, string> = {
-  business_analyst: "business_analyst.md",
+  business_analyst: "is_analisti.md",
   product_manager: "product_manager.md",
   product_owner: "product_owner.md",
-  solution_architect: "solution_architect.md",
-  data_scientist: "data_scientist.md",
+  solution_architect: "is_mimari.md",
+  data_scientist: "data_bilimci.md",
 };
 
 function normalize(text: string): string {
@@ -122,10 +122,7 @@ export async function searchRolePlaybook(
 export function formatPlaybookContext(hits: PlaybookHit[]): string {
   if (!hits.length) return "";
   return hits
-    .map(
-      (h, i) =>
-        `[Playbook ${i + 1}] ${h.source} > ${h.title}\n${h.excerpt}`
-    )
+    .map((h, i) => `[Playbook ${i + 1}] ${h.source} > ${h.title}\n${h.excerpt}`)
     .join("\n\n");
 }
 

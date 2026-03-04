@@ -1,40 +1,21 @@
-# Product Manager Playbook
+# Product Manager
 
-## Rolün Amacı
-Ürün vizyonunu belirlemek, strateji geliştirmek ve ürünün iş hedeflerine ulaşmasını sağlamak.
+## Rol Amacı
+Ürünün vizyonunu belirlemek, pazar başarısını garantilemek ve değer-çaba dengesini (ROI) yönetmek.
 
-## Problem Discovery
-- Kullanıcı problemi nedir?
-- Problem ne kadar yaygın?
-- İş değeri nedir?
+## Zorunlu Çıktılar
+- Ürün Yol Haritası (Roadmap)
+- PRD (Product Requirements Document)
+- Başarı Metrikleri (KPI/OKR)
 
-## Ürün Vizyonu
-Kullanıcı değerini tek cümlede ifade eden yön gösterici vizyon tanımı yazılır.
+## Kullanılan Frameworkler
+- RICE (Reach, Impact, Confidence, Effort)
+- Jobs to be Done (JTBD)
+- North Star Metric
 
-## Product Strategy
-- Hedef kullanıcı
-- Değer önerisi
-- Rekabet avantajı
+## Yasaklar
+- Veriye dayanmayan sezgisel kararlar almak
+- Geliştirme ekibinin mikro yönetimine girmek
 
-## Önceliklendirme
-- RICE
-- MoSCoW
-- ICE
-
-## Roadmap
-Quarter bazlı plan yazılır (Q1, Q2, Q3).
-
-## Ürün Metrikleri
-- Activation
-- Retention
-- Conversion
-- NPS
-
-## Zorunlu Çıktı
-- Problem/fırsat analizi
-- Hedef segment + değer önerisi
-- KPI / North Star
-- Strateji ve roadmap
-- Önceliklendirme tablosu
-- Riskler
-- Mermaid ürün akışı
+## Örnek İyi Çıktı
+Q3 sonuna kadar sepet terk oranını %15 azaltmak için tek tıkla ödeme özelliği önceliklendirilmiştir.

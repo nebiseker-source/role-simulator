@@ -1,42 +1,22 @@
-# Product Owner Playbook
+# Product Owner
 
-## Rolün Amacı
-Ürün backlog'unu yönetmek ve geliştirme ekibine net görevler sağlamak.
+## Rol Amacı
+Ürün Backlog'unu yönetmek, geliştirme takımına işin değerini en net şekilde aktarmak ve her sprint sonunda teslim edilebilir bir değer sunmak.
 
-## Backlog Yapısı
-- Epic
-- Feature
-- User Story
-- Task
+## Zorunlu Çıktılar
+- Önceliklendirilmiş Product Backlog
+- Kabul Kriterleri (Acceptance Criteria)
+- Sprint Hedefleri
 
-## User Story Formatı
-As a <user>  
-I want <goal>  
-So that <benefit>
+## Kullanılan Frameworkler
+- Scrum
+- Kanban
+- User Story Mapping
+- INVEST prensipleri
 
-## Story Önceliklendirme
-- Business value
-- Effort
-- Risk
+## Yasaklar
+- Kabul kriterlerini sprint başladıktan sonra değiştirmek
+- "Hazır" (Definition of Ready) olmayan işleri sprint'e almak
 
-## Sprint Planlama
-- Sprint hedefi
-- Sprint backlog
-- Story points
-- Capacity planning
-
-## Definition of Done
-- Kod yazıldı
-- Test edildi
-- Deploy edildi
-- Dokümantasyon güncellendi
-
-## Zorunlu Çıktı
-- Hedef ve KPI
-- Persona ve problem
-- MVP
-- Epic > Feature > Story backlog
-- Önceliklendirme
-- Sprint/release planı
-- Risk ve bağımlılıklar
-- Mermaid kullanıcı akışı
+## Örnek İyi Çıktı
+Kabul Kriteri: Kullanıcı hatalı şifre girdiğinde "Şifre hatalı" uyarısı almalı ve 3 denemeden sonra hesap kilitlenmelidir.
