@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSystemPrompt, RoleKey } from "@/lib/roles";
-import { MAX_NOTES_CHARS } from "@/lib/server/notes-extractor";
+import { MAX_NOTES_CHARS } from "@/lib/server/notes-config";
 import {
   callLlm,
   getLlmProvider,
@@ -13,6 +13,8 @@ import {
   formatPlaybookSources,
   searchRolePlaybook,
 } from "@/lib/server/playbook-lite";
+
+export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json(

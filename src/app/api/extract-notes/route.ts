@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { extractTextFromNotesFile, MAX_NOTES_CHARS } from "@/lib/server/notes-extractor";
+import { extractTextFromNotesFile } from "@/lib/server/notes-extractor";
+import { MAX_NOTES_CHARS } from "@/lib/server/notes-config";
 
 export const runtime = "nodejs";
 
