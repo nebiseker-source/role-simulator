@@ -42,7 +42,7 @@ function extractSection(markdown: string, keywords: string[]): string {
     .filter((x) => /^#{1,6}\s+/.test(x.line));
 
   const start = headers.find((h) =>
-    keywords.some((k) => h.line.toLocaleLowerCase("tr-TR").includes(k.toLocaleLowerCase("tr-TR")))
+    keywords.some((k) => h.line.toLowerCase().includes(k.toLowerCase()))
   );
   if (!start) return "";
 
@@ -58,18 +58,18 @@ async function readJsonSafely(response: Response): Promise<Record<string, unknow
   const endpoint = response.url ? new URL(response.url).pathname : "API";
 
   if (response.status === 405 && !raw) {
-    throw new Error(`${endpoint} için yöntem hatası (HTTP 405). Sayfayı yenileyip tekrar dene.`);
+    throw new Error(`${endpoint} icin yontem hatasi (HTTP 405). Sayfayi yenileyip tekrar dene.`);
   }
 
   if (!raw) {
-    throw new Error(`${endpoint} boş yanıt döndürdü (HTTP ${response.status}).`);
+    throw new Error(`${endpoint} bos yanit dondurdu (HTTP ${response.status}).`);
   }
 
   try {
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {
     throw new Error(
-      `${endpoint} JSON dışı yanıt döndürdü (HTTP ${response.status}). İlk içerik: ${raw.slice(0, 200)}`
+      `${endpoint} JSON disi yanit dondurdu (HTTP ${response.status}). Ilk icerik: ${raw.slice(0, 200)}`
     );
   }
 }
@@ -98,18 +98,11 @@ export default function Home() {
   const visibleOutput = activeResult === "team" ? teamOutput?.finalSynthesis ?? "" : singleOutput;
   const diagrams = useMemo(() => extractMermaidBlocks(visibleOutput), [visibleOutput]);
   const taskSection = useMemo(
-    () =>
-      extractSection(visibleOutput, [
-        "görev kırılımı",
-        "task breakdown",
-        "backlog",
-        "plan",
-        "teslimat çıktıları",
-      ]),
+    () => extractSection(visibleOutput, ["gorev kirilimi", "task breakdown", "backlog", "plan"]),
     [visibleOutput]
   );
   const testSection = useMemo(
-    () => extractSection(visibleOutput, ["test senaryoları", "test", "acceptance criteria"]),
+    () => extractSection(visibleOutput, ["test senaryolari", "test", "acceptance criteria"]),
     [visibleOutput]
   );
 
@@ -150,15 +143,6 @@ export default function Home() {
     persistHistory([item, ...history].slice(0, MAX_HISTORY));
   }
 
-  function loadHistoryItem(id: string) {
-    const found = history.find((x) => x.id === id);
-    if (found) setNotes(found.notes);
-  }
-
-  function removeHistoryItem(id: string) {
-    persistHistory(history.filter((x) => x.id !== id));
-  }
-
   async function handleNotesFile(file: File | null) {
     setNotesFile(file);
     setFileNotes("");
@@ -172,11 +156,11 @@ export default function Home() {
       form.append("notesFile", file);
       const r = await fetch("/api/extract-notes", { method: "POST", body: form });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "Dosya işlenemedi"));
+      if (!r.ok) throw new Error(String(data.error ?? "Dosya islenemedi"));
 
       setFileNotes(String(data.extractedText ?? ""));
       setFileInfo(
-        `${data.fileName} • ${(Number(data.fileSize) / 1024 / 1024).toFixed(2)} MB${data.pageCount ? ` • ${data.pageCount} sayfa` : ""}${data.clipped ? " • metin kısaltıldı" : ""}`
+        `${data.fileName} | ${(Number(data.fileSize) / 1024 / 1024).toFixed(2)} MB${data.pageCount ? ` | ${data.pageCount} sayfa` : ""}${data.clipped ? " | metin kisaltildi" : ""}`
       );
     } catch (err: unknown) {
       setFileError(err instanceof Error ? err.message : "Bilinmeyen hata");
@@ -198,7 +182,7 @@ export default function Home() {
         body: JSON.stringify({ role, task, notes, fileNotes }),
       });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "API hatası"));
+      if (!r.ok) throw new Error(String(data.error ?? "API hatasi"));
       setSingleOutput(String(data.output ?? ""));
       setSingleFallback(Boolean(data.fallback));
     } catch (err: unknown) {
@@ -224,7 +208,7 @@ export default function Home() {
         }),
       });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "API hatası"));
+      if (!r.ok) throw new Error(String(data.error ?? "API hatasi"));
       setTeamOutput(data as unknown as TeamResult);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
@@ -249,9 +233,9 @@ export default function Home() {
 
       const r = await fetch("/api/rag/index", { method: "POST", body: form });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "RAG indexleme hatası"));
+      if (!r.ok) throw new Error(String(data.error ?? "RAG indexleme hatasi"));
 
-      setRagMessage(`RAG indexleme tamamlandı. Doküman: ${data.docId}, parça: ${data.chunkCount}`);
+      setRagMessage(`RAG indexleme tamamlandi. Dokuman: ${data.docId}, parca: ${data.chunkCount}`);
       const statsResp = await fetch("/api/rag/stats");
       const stats = await readJsonSafely(statsResp);
       if (typeof stats.documents === "number" && typeof stats.chunks === "number") {
@@ -267,17 +251,11 @@ export default function Home() {
 
   function renderOutputTab() {
     if (!visibleOutput) {
-      return <p className="text-slate-500">Henüz çıktı yok. Yukarıdan simülasyon başlat.</p>;
+      return <p className="text-slate-500">Henuz cikti yok. Yukaridan simulasyon baslat.</p>;
     }
-
-    if (outputTab === "rapor") {
-      return <MarkdownOutput content={visibleOutput} />;
-    }
-
+    if (outputTab === "rapor") return <MarkdownOutput content={visibleOutput} />;
     if (outputTab === "diyagram") {
-      if (!diagrams.length) {
-        return <p className="text-slate-500">Bu çıktıda Mermaid diyagramı bulunamadı.</p>;
-      }
+      if (!diagrams.length) return <p className="text-slate-500">Bu ciktida Mermaid diyagrami bulunamadi.</p>;
       return (
         <div className="space-y-4">
           {diagrams.map((chart, i) => (
@@ -288,20 +266,10 @@ export default function Home() {
         </div>
       );
     }
-
     if (outputTab === "gorevler") {
-      return taskSection ? (
-        <MarkdownOutput content={taskSection} />
-      ) : (
-        <p className="text-slate-500">Görev kırılımı bölümü bulunamadı.</p>
-      );
+      return taskSection ? <MarkdownOutput content={taskSection} /> : <p className="text-slate-500">Gorev bolumu bulunamadi.</p>;
     }
-
-    return testSection ? (
-      <MarkdownOutput content={testSection} />
-    ) : (
-      <p className="text-slate-500">Test senaryoları bölümü bulunamadı.</p>
-    );
+    return testSection ? <MarkdownOutput content={testSection} /> : <p className="text-slate-500">Test bolumu bulunamadi.</p>;
   }
 
   return (
@@ -312,15 +280,15 @@ export default function Home() {
           <div className="absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-teal-300/20 blur-3xl" />
           <div className="relative">
             <p className="text-xs uppercase tracking-[0.18em] text-cyan-100/90">Business AI Studio</p>
-            <h1 className="mt-2 text-2xl font-semibold md:text-3xl">Role-Based Analist Simülatörü</h1>
+            <h1 className="mt-2 text-2xl font-semibold md:text-3xl">Role-Based Analist Simulatoru</h1>
             <p className="mt-3 max-w-4xl text-sm text-sky-100/90 md:text-base">
-              Tek rol veya ekip simülasyonu çalıştır. Rapor, diyagram, görevler ve testler sekmelerle ayrı görüntülenir.
+              Tek rol veya ekip simulasyonu calistir. Rapor, diyagram, gorevler ve testler sekmelerle ayri goruntulenir.
             </p>
           </div>
         </section>
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-          <h2 className="text-lg font-semibold">Simülasyon Girişi</h2>
+          <h2 className="text-lg font-semibold">Simulasyon Girisi</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium">Rol</label>
@@ -338,117 +306,57 @@ export default function Home() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium">İş / Problem Tanımı</label>
+              <label className="mb-2 block text-sm font-medium">Is / Problem Tanimi</label>
               <textarea
                 className="min-h-[140px] w-full rounded-xl border border-white/15 bg-slate-950 px-3 py-2 outline-none ring-cyan-400 transition focus:ring-2"
                 value={task}
                 onChange={(e) => setTask(e.target.value)}
-                placeholder="Örn: Sefer iptalinde müşteriye otomatik bilgilendirme ve alternatif öneri süreci"
+                placeholder="Orn: Sefer iptalinde musteriyi otomatik bilgilendirme ve alternatif oneri sureci"
               />
             </div>
 
             <div className="md:col-span-2">
               <div className="mb-2 flex items-center justify-between">
-                <label className="block text-sm font-medium">Ders Notları (Metin)</label>
-                <button
-                  type="button"
-                  onClick={saveCurrentNotes}
-                  className="rounded-lg border border-cyan-300/40 px-2.5 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10"
-                >
-                  Notları Kaydet
+                <label className="block text-sm font-medium">Ders Notlari (Metin)</label>
+                <button type="button" onClick={saveCurrentNotes} className="rounded-lg border border-cyan-300/40 px-2.5 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10">
+                  Notlari Kaydet
                 </button>
               </div>
               <textarea
                 className="min-h-[110px] w-full rounded-xl border border-white/15 bg-slate-950 px-3 py-2 outline-none ring-cyan-400 transition focus:ring-2"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Rolün takip etmesini istediğin ders notu özetini buraya gir."
+                placeholder="Role takip ettirmek istedigin ders notu ozetini buraya yaz."
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium">Ders Notu Dosyası İçe Aktar (PDF/Word/TXT/MD)</label>
+              <label className="mb-2 block text-sm font-medium">Ders Notu Dosyasi Ice Aktar (PDF/Word/TXT/MD)</label>
               <input
                 type="file"
                 accept={ACCEPTED_TYPES}
                 onChange={(e) => handleNotesFile(e.target.files?.[0] ?? null)}
                 className="block w-full cursor-pointer rounded-xl border border-dashed border-cyan-300/40 bg-slate-950 px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-1.5 file:text-white hover:border-cyan-300/70"
               />
-              <p className="mt-1 text-xs text-slate-400">Limit: en fazla 8 MB, PDF için en fazla 40 sayfa.</p>
-              <p className="mt-1 text-xs text-cyan-200">
-                {fileLoading ? "Dosya işleniyor..." : fileInfo || (notesFile ? notesFile.name : "Dosya seçilmedi.")}
-              </p>
+              <p className="mt-1 text-xs text-slate-400">Limit: en fazla 8 MB, PDF icin en fazla 40 sayfa.</p>
+              <p className="mt-1 text-xs text-cyan-200">{fileLoading ? "Dosya isleniyor..." : fileInfo || (notesFile ? notesFile.name : "Dosya secilmedi.")}</p>
               {fileError ? <p className="mt-1 text-xs text-rose-300">{fileError}</p> : null}
             </div>
 
-            {fileNotes ? (
-              <div className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-1 text-xs uppercase tracking-wider text-slate-400">Dosyadan Çıkan Not Önizleme</div>
-                <pre className="max-h-36 overflow-auto whitespace-pre-wrap text-xs text-slate-200">{fileNotes}</pre>
-              </div>
-            ) : null}
-
-            {history.length ? (
-              <div className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-2 text-xs uppercase tracking-wider text-slate-400">Not Geçmişi</div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {history.map((item) => (
-                    <div key={item.id} className="flex items-start justify-between gap-2 rounded-lg border border-white/10 p-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-cyan-200">{item.title}</p>
-                        <p className="text-[11px] text-slate-400">{item.createdAt}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => loadHistoryItem(item.id)}
-                          className="rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] text-cyan-200"
-                        >
-                          Yükle
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeHistoryItem(item.id)}
-                          className="rounded-md border border-rose-300/40 px-2 py-1 text-[11px] text-rose-200"
-                        >
-                          Sil
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             <div className="md:col-span-2 grid grid-cols-1 gap-2 md:grid-cols-3">
-              <button
-                onClick={runSingleSimulation}
-                disabled={loading || !task.trim()}
-                className="rounded-xl bg-cyan-500 px-4 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading && activeResult === "single" ? "Çalışıyor..." : "Tek Rol Simüle Et"}
+              <button onClick={runSingleSimulation} disabled={loading || !task.trim()} className="rounded-xl bg-cyan-500 px-4 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60">
+                {loading && activeResult === "single" ? "Calisiyor..." : "Tek Rol Simule Et"}
               </button>
-              <button
-                onClick={runTeamSimulation}
-                disabled={loading || !task.trim()}
-                className="rounded-xl bg-indigo-500 px-4 py-2.5 font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading && activeResult === "team" ? "Çalışıyor..." : "Ekip Simülasyonu"}
+              <button onClick={runTeamSimulation} disabled={loading || !task.trim()} className="rounded-xl bg-indigo-500 px-4 py-2.5 font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60">
+                {loading && activeResult === "team" ? "Calisiyor..." : "Ekip Simulasyonu"}
               </button>
-              <button
-                type="button"
-                onClick={addNotesToRag}
-                disabled={ragLoading || (!notes.trim() && !notesFile)}
-                className="rounded-xl border border-cyan-300/40 px-3 py-2.5 text-sm text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
-              >
-                {ragLoading ? "İndeksleniyor..." : "Notları RAG'e Ekle"}
+              <button type="button" onClick={addNotesToRag} disabled={ragLoading || (!notes.trim() && !notesFile)} className="rounded-xl border border-cyan-300/40 px-3 py-2.5 text-sm text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50">
+                {ragLoading ? "Indeksleniyor..." : "Notlari RAG'e Ekle"}
               </button>
             </div>
 
             <div className="md:col-span-2 rounded-xl border border-cyan-300/25 bg-cyan-950/20 p-3 text-xs text-cyan-100/90">
-              {ragStats
-                ? `Toplam doküman: ${ragStats.documents} • Toplam parça: ${ragStats.chunks}`
-                : "RAG istatistikleri yükleniyor..."}
+              {ragStats ? `Toplam dokuman: ${ragStats.documents} | Toplam parca: ${ragStats.chunks}` : "RAG istatistikleri yukleniyor..."}
               {ragMessage ? <div className="mt-1">{ragMessage}</div> : null}
             </div>
           </div>
@@ -456,62 +364,23 @@ export default function Home() {
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-white p-5 text-slate-800 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Çıktı Paneli</h2>
-            <button
-              onClick={() => navigator.clipboard.writeText(visibleOutput)}
-              disabled={!visibleOutput}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50"
-            >
+            <h2 className="text-lg font-semibold">Cikti Paneli</h2>
+            <button onClick={() => navigator.clipboard.writeText(visibleOutput)} disabled={!visibleOutput} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50">
               Kopyala
             </button>
           </div>
 
           <div className="mb-4 flex flex-wrap gap-2">
-            {[
-              { id: "rapor", label: "Rapor" },
-              { id: "diyagram", label: `Diyagramlar (${diagrams.length})` },
-              { id: "gorevler", label: "Görevler" },
-              { id: "testler", label: "Testler" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setOutputTab(tab.id as OutputTab)}
-                className={`rounded-lg px-3 py-1.5 text-sm ${
-                  outputTab === tab.id
-                    ? "bg-slate-900 text-white"
-                    : "border border-slate-300 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
+            {[{ id: "rapor", label: "Rapor" }, { id: "diyagram", label: `Diyagramlar (${diagrams.length})` }, { id: "gorevler", label: "Gorevler" }, { id: "testler", label: "Testler" }].map((tab) => (
+              <button key={tab.id} onClick={() => setOutputTab(tab.id as OutputTab)} className={`rounded-lg px-3 py-1.5 text-sm ${outputTab === tab.id ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}>
                 {tab.label}
               </button>
             ))}
           </div>
 
-          {(singleFallback || teamOutput?.fallbackUsed) && (
-            <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">
-              Quota veya bağlantı sorunu nedeniyle fallback modu kullanıldı.
-            </p>
-          )}
+          {(singleFallback || teamOutput?.fallbackUsed) && <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">Quota veya baglanti sorunu nedeniyle fallback modu kullanildi.</p>}
 
-          <div className="min-h-[74vh] max-h-[86vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-5">
-            {renderOutputTab()}
-          </div>
-
-          {activeResult === "team" && teamOutput?.steps.length ? (
-            <div className="mt-4 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-700">Rol Bazlı Ara Çıktılar</h3>
-              {teamOutput.steps.map((step) => (
-                <details key={step.role} className="rounded-xl border border-slate-200 bg-white p-3">
-                  <summary className="cursor-pointer font-semibold">
-                    {ROLE_LABELS[step.role]} {step.fallbackUsed ? "(fallback)" : ""}
-                  </summary>
-                  <div className="mt-3">
-                    <MarkdownOutput content={step.output} />
-                  </div>
-                </details>
-              ))}
-            </div>
-          ) : null}
+          <div className="min-h-[74vh] max-h-[86vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-5">{renderOutputTab()}</div>
         </section>
       </div>
     </main>
