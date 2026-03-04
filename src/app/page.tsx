@@ -6,15 +6,6 @@ import MermaidChart from "@/components/MermaidChart";
 import { ROLE_LABELS, RoleKey } from "@/lib/roles";
 
 const ACCEPTED_TYPES = ".pdf,.docx,.txt,.md";
-const HISTORY_KEY = "role_sim_notes_history_v1";
-const MAX_HISTORY = 8;
-
-type NotesHistoryItem = {
-  id: string;
-  title: string;
-  notes: string;
-  createdAt: string;
-};
 
 type TeamStep = {
   role: RoleKey;
@@ -71,7 +62,6 @@ export default function Home() {
   const roles = useMemo(() => Object.keys(ROLE_LABELS) as RoleKey[], []);
   const [role, setRole] = useState<RoleKey>("business_analyst");
   const [task, setTask] = useState("");
-  const [notes, setNotes] = useState("");
   const [notesFile, setNotesFile] = useState<File | null>(null);
   const [fileNotes, setFileNotes] = useState("");
   const [fileInfo, setFileInfo] = useState("");
@@ -82,7 +72,6 @@ export default function Home() {
   const [singleOutput, setSingleOutput] = useState("");
   const [singleFallback, setSingleFallback] = useState(false);
   const [teamOutput, setTeamOutput] = useState<TeamResult | null>(null);
-  const [history, setHistory] = useState<NotesHistoryItem[]>([]);
   const [ragLoading, setRagLoading] = useState(false);
   const [ragMessage, setRagMessage] = useState("");
   const [ragStats, setRagStats] = useState<{ documents: number; chunks: number } | null>(null);
@@ -107,16 +96,6 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (!raw) return;
-    try {
-      setHistory(JSON.parse(raw) as NotesHistoryItem[]);
-    } catch {
-      setHistory([]);
-    }
-  }, []);
-
-  useEffect(() => {
     fetch("/api/rag/stats")
       .then((r) => readJsonSafely(r))
       .then((data) => {
@@ -127,32 +106,7 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  function persistHistory(items: NotesHistoryItem[]) {
-    setHistory(items);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
-  }
-
-  function saveCurrentNotes() {
-    if (!notes.trim()) return;
-    const item: NotesHistoryItem = {
-      id: crypto.randomUUID(),
-      title: task.trim() ? task.trim().slice(0, 42) : "Kaydedilen not",
-      notes,
-      createdAt: new Date().toLocaleString("tr-TR"),
-    };
-    persistHistory([item, ...history].slice(0, MAX_HISTORY));
-  }
-
-  function loadHistoryItem(id: string) {
-    const found = history.find((x) => x.id === id);
-    if (found) setNotes(found.notes);
-  }
-
-  function removeHistoryItem(id: string) {
-    persistHistory(history.filter((x) => x.id !== id));
-  }
-
-  async function handleNotesFile(file: File | null) {
+  async function handleSourceFile(file: File | null) {
     setNotesFile(file);
     setFileNotes("");
     setFileInfo("");
@@ -188,7 +142,7 @@ export default function Home() {
       const r = await fetch("/api/simulate-role", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, task, notes, fileNotes }),
+        body: JSON.stringify({ role, task, fileNotes }),
       });
       const data = await readJsonSafely(r);
       if (!r.ok) throw new Error(String(data.error ?? "API hatası"));
@@ -213,7 +167,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           task,
-          notes: [notes, fileNotes].filter(Boolean).join("\n\n"),
+          notes: fileNotes,
         }),
       });
       const data = await readJsonSafely(r);
@@ -231,13 +185,13 @@ export default function Home() {
     }
   }
 
-  async function addNotesToRag() {
+  async function addSourceToRag() {
     setRagLoading(true);
     setRagMessage("");
     try {
       const form = new FormData();
-      form.append("title", task.trim() ? task.trim().slice(0, 80) : "Ders Notu");
-      form.append("text", notes);
+      form.append("title", task.trim() ? task.trim().slice(0, 80) : "Kaynak Dosya");
+      form.append("text", fileNotes);
       if (notesFile) form.append("file", notesFile);
 
       const r = await fetch("/api/rag/index", { method: "POST", body: form });
@@ -333,30 +287,11 @@ export default function Home() {
             </div>
 
             <div className="md:col-span-2">
-              <div className="mb-2 flex items-center justify-between">
-                <label className="block text-sm font-medium">Ders Notları (Metin)</label>
-                <button
-                  type="button"
-                  onClick={saveCurrentNotes}
-                  className="rounded-lg border border-cyan-300/40 px-2.5 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10"
-                >
-                  Notları Kaydet
-                </button>
-              </div>
-              <textarea
-                className="min-h-[110px] w-full rounded-xl border border-white/15 bg-slate-950 px-3 py-2"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Role takip ettirmek istediğin ders notu özetini buraya yaz."
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium">Ders Notu Dosyası İçe Aktar (PDF/Word/TXT/MD)</label>
+              <label className="mb-2 block text-sm font-medium">Kaynak Dosya (PDF/Word/TXT/MD)</label>
               <input
                 type="file"
                 accept={ACCEPTED_TYPES}
-                onChange={(e) => handleNotesFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => handleSourceFile(e.target.files?.[0] ?? null)}
                 className="block w-full cursor-pointer rounded-xl border border-dashed border-cyan-300/40 bg-slate-950 px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-1.5 file:text-white hover:border-cyan-300/70"
               />
               <p className="mt-1 text-xs text-slate-400">Limit: en fazla 8 MB, PDF için en fazla 40 sayfa.</p>
@@ -368,40 +303,8 @@ export default function Home() {
 
             {fileNotes ? (
               <div className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-1 text-xs uppercase tracking-wider text-slate-400">Dosyadan Çıkan Not Önizleme</div>
+                <div className="mb-1 text-xs uppercase tracking-wider text-slate-400">Dosyadan Çıkan İçerik Önizleme</div>
                 <pre className="max-h-36 overflow-auto whitespace-pre-wrap text-xs text-slate-200">{fileNotes}</pre>
-              </div>
-            ) : null}
-
-            {history.length ? (
-              <div className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-2 text-xs uppercase tracking-wider text-slate-400">Not Geçmişi</div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {history.map((item) => (
-                    <div key={item.id} className="flex items-start justify-between gap-2 rounded-lg border border-white/10 p-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-cyan-200">{item.title}</p>
-                        <p className="text-[11px] text-slate-400">{item.createdAt}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => loadHistoryItem(item.id)}
-                          className="rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] text-cyan-200"
-                        >
-                          Yükle
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeHistoryItem(item.id)}
-                          className="rounded-md border border-rose-300/40 px-2 py-1 text-[11px] text-rose-200"
-                        >
-                          Sil
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             ) : null}
 
@@ -422,11 +325,11 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={addNotesToRag}
-                disabled={ragLoading || (!notes.trim() && !notesFile)}
+                onClick={addSourceToRag}
+                disabled={ragLoading || (!notesFile && !fileNotes)}
                 className="rounded-xl border border-cyan-300/40 px-3 py-2.5 text-sm text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
               >
-                {ragLoading ? "İndeksleniyor..." : "Notları RAG'e Ekle"}
+                {ragLoading ? "İndeksleniyor..." : "Kaynağı RAG'e Ekle"}
               </button>
             </div>
 
