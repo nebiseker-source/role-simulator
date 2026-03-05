@@ -1,5 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { RoleKey } from "@/lib/roles";
+
+type RagRole = RoleKey | "shared";
 
 type RagChunk = {
   id: string;
@@ -9,6 +12,7 @@ type RagChunk = {
   text: string;
   embedding: number[];
   createdAt: string;
+  role?: RagRole;
 };
 
 type RagIndex = {
@@ -23,9 +27,22 @@ const DATA_DIR = process.env.RAG_DATA_DIR
     : path.join(process.cwd(), "data");
 const INDEX_FILE = path.join(DATA_DIR, "rag-index.json");
 const DEFAULT_TOP_K = Number(process.env.RAG_TOP_K ?? 5);
+const VALID_ROLES = new Set<RoleKey>([
+  "business_analyst",
+  "product_manager",
+  "product_owner",
+  "solution_architect",
+  "data_scientist",
+]);
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeRole(value: string | undefined): RagRole {
+  if (!value) return "shared";
+  const v = value.trim();
+  return VALID_ROLES.has(v as RoleKey) ? (v as RoleKey) : "shared";
 }
 
 async function ensureIndex(): Promise<void> {
@@ -121,6 +138,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 export async function indexKnowledgeDocument(input: {
   title: string;
   text: string;
+  role?: string;
 }): Promise<{ docId: string; chunkCount: number }> {
   const docId = uid("doc");
   const chunks = splitIntoChunks(input.text);
@@ -131,6 +149,7 @@ export async function indexKnowledgeDocument(input: {
   const embeddings = await Promise.all(chunks.map((c) => embedText(c)));
   const now = new Date().toISOString();
   const index = await readIndex();
+  const role = normalizeRole(input.role);
 
   const records: RagChunk[] = chunks.map((text, i) => ({
     id: uid("chunk"),
@@ -139,7 +158,8 @@ export async function indexKnowledgeDocument(input: {
     chunkIndex: i,
     text,
     embedding: embeddings[i],
-    createdAt: now
+    createdAt: now,
+    role,
   }));
 
   index.chunks.push(...records);
@@ -147,13 +167,23 @@ export async function indexKnowledgeDocument(input: {
   return { docId, chunkCount: records.length };
 }
 
-export async function searchKnowledge(query: string, topK = DEFAULT_TOP_K): Promise<RagChunk[]> {
+export async function searchKnowledge(
+  query: string,
+  topK = DEFAULT_TOP_K,
+  roleFilter?: string
+): Promise<RagChunk[]> {
   const q = query.trim();
   if (!q) return [];
   const index = await readIndex();
   if (!index.chunks.length) return [];
+  const role = normalizeRole(roleFilter);
+  const byRole = index.chunks.filter((chunk) => {
+    const chunkRole = chunk.role ?? "shared";
+    return role === "shared" ? true : chunkRole === role || chunkRole === "shared";
+  });
+  const candidates = byRole.length ? byRole : index.chunks;
   const qEmb = await embedText(q);
-  const scored = index.chunks.map((chunk) => ({
+  const scored = candidates.map((chunk) => ({
     chunk,
     score: cosineSimilarity(qEmb, chunk.embedding)
   }));
@@ -162,14 +192,18 @@ export async function searchKnowledge(query: string, topK = DEFAULT_TOP_K): Prom
   return scored.slice(0, Math.max(1, topK)).map((x) => x.chunk);
 }
 
-export async function formatRagContext(query: string, topK = DEFAULT_TOP_K): Promise<string> {
+export async function formatRagContext(
+  query: string,
+  topK = DEFAULT_TOP_K,
+  roleFilter?: string
+): Promise<string> {
   try {
-    const hits = await searchKnowledge(query, topK);
+    const hits = await searchKnowledge(query, topK, roleFilter);
     if (!hits.length) return "";
     return hits
       .map(
         (h, i) =>
-          `[Kaynak ${i + 1}] ${h.title} (parca ${h.chunkIndex + 1})\n${h.text}`
+          `[Kaynak ${i + 1}] ${h.title} (parca ${h.chunkIndex + 1}, rol: ${h.role ?? "shared"})\n${h.text}`
       )
       .join("\n\n");
   } catch {

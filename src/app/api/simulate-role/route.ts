@@ -10,6 +10,34 @@ import {
 
 export const runtime = "nodejs";
 
+type StructuredTask = {
+  id: string;
+  team: string;
+  title: string;
+  deliverable: string;
+  duration: string;
+  dependency: string;
+};
+
+type StructuredTest = {
+  id: string;
+  type: string;
+  scenario: string;
+  expected: string;
+};
+
+type StructuredSimulation = {
+  problemSummary: string;
+  referenceNotesSummary: string;
+  roleAnalysis: string[];
+  plan: string[];
+  tasks: StructuredTask[];
+  tests: StructuredTest[];
+  mermaid: string;
+  playbookSections: string[];
+  sources: string[];
+};
+
 function asRoleKey(value: string): RoleKey | null {
   const roles: RoleKey[] = [
     "business_analyst",
@@ -34,6 +62,173 @@ function roleTitle(role: RoleKey): string {
     case "data_scientist":
       return "Data Bilimci";
   }
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((x) => asString(x)).filter(Boolean);
+}
+
+function extractJsonCandidate(text: string): string {
+  const block = text.match(/```json\s*([\s\S]*?)```/i);
+  if (block?.[1]) return block[1].trim();
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    return text.slice(first, last + 1).trim();
+  }
+  return "";
+}
+
+function parseStructuredOutput(
+  text: string,
+  role: RoleKey,
+  task: string,
+  notes: string,
+  sources: string[],
+  excerpts: string[]
+): StructuredSimulation | null {
+  const json = extractJsonCandidate(text);
+  if (!json) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+
+  const tasksRaw = Array.isArray(obj.tasks) ? obj.tasks : [];
+  const testsRaw = Array.isArray(obj.tests) ? obj.tests : [];
+
+  const tasks: StructuredTask[] = tasksRaw
+    .map((x, i) => {
+      const rec = x as Record<string, unknown>;
+      return {
+        id: asString(rec.id, `TASK-${i + 1}`),
+        team: asString(rec.team, "Takım"),
+        title: asString(rec.title),
+        deliverable: asString(rec.deliverable, "-"),
+        duration: asString(rec.duration, "-"),
+        dependency: asString(rec.dependency, "-"),
+      };
+    })
+    .filter((x) => x.title);
+
+  const tests: StructuredTest[] = testsRaw
+    .map((x, i) => {
+      const rec = x as Record<string, unknown>;
+      return {
+        id: asString(rec.id, `TEST-${i + 1}`),
+        type: asString(rec.type, "Pozitif"),
+        scenario: asString(rec.scenario),
+        expected: asString(rec.expected, "-"),
+      };
+    })
+    .filter((x) => x.scenario);
+
+  const structured: StructuredSimulation = {
+    problemSummary: asString(obj.problemSummary, shortTaskSummary(task)),
+    referenceNotesSummary: asString(obj.referenceNotesSummary, notes ? notes.slice(0, 800) : "Not eklenmedi."),
+    roleAnalysis: asStringArray(obj.roleAnalysis),
+    plan: asStringArray(obj.plan),
+    tasks: tasks.length ? tasks : teamTasks(detectDomain(task))
+      .filter((l) => l.startsWith("|"))
+      .slice(2)
+      .map((line, i) => {
+        const cells = line.split("|").map((x) => x.trim()).filter(Boolean);
+        return {
+          id: cells[0] || `TASK-${i + 1}`,
+          team: cells[1] || "Takım",
+          title: cells[2] || "Görev",
+          deliverable: cells[3] || "-",
+          duration: cells[4] || "-",
+          dependency: cells[5] || "-",
+        };
+      }),
+    tests: tests.length ? tests : [],
+    mermaid: asString(obj.mermaid, workflowDiagram(detectDomain(task)).join("\n")),
+    playbookSections: asStringArray(obj.playbookSections).length
+      ? asStringArray(obj.playbookSections)
+      : excerpts,
+    sources: asStringArray(obj.sources).length ? asStringArray(obj.sources) : sources,
+  };
+
+  if (!structured.mermaid.includes("flowchart") && !structured.mermaid.includes("sequenceDiagram")) {
+    structured.mermaid = workflowDiagram(detectDomain(task)).join("\n");
+  }
+  return structured;
+}
+
+function structuredToMarkdown(role: RoleKey, structured: StructuredSimulation): string {
+  const roleAnalysis = structured.roleAnalysis.length
+    ? structured.roleAnalysis.map((x) => `- ${x}`).join("\n")
+    : "- Rol analizi oluşturulamadı.";
+  const plan = structured.plan.length ? structured.plan.map((x) => `- ${x}`).join("\n") : "- Plan oluşturulamadı.";
+  const tasks = structured.tasks.length
+    ? structured.tasks
+      .map(
+        (t) =>
+          `| ${t.id} | ${t.team} | ${t.title} | ${t.deliverable} | ${t.duration} | ${t.dependency} |`
+      )
+      .join("\n")
+    : "| TASK-1 | Takım | Görev | Teslimat | 1g | - |";
+  const tests = structured.tests.length
+    ? structured.tests
+      .map((t) => `| ${t.id} | ${t.type} | ${t.scenario} | ${t.expected} |`)
+      .join("\n")
+    : "| TEST-1 | Pozitif | Örnek senaryo | Beklenen sonuç |";
+  const playbook = structured.playbookSections.length
+    ? structured.playbookSections.map((x) => `- ${x}`).join("\n")
+    : "- Eşleşen bölüm bulunamadı";
+  const sources = structured.sources.length
+    ? structured.sources.map((x) => `- ${x}`).join("\n")
+    : "- Kaynak bulunamadı";
+
+  return [
+    `# ${roleTitle(role)} Çıktısı`,
+    "",
+    "## 1) Problem Özeti",
+    `- ${structured.problemSummary}`,
+    "",
+    "## 2) Referans Not Özeti",
+    `${structured.referenceNotesSummary}`,
+    "",
+    "## 3) Rol Bazlı Analiz",
+    roleAnalysis,
+    "",
+    "## 4) Uygulanabilir Plan",
+    plan,
+    "",
+    "## 5) Ekip Bazlı Görev Dağılımı (Açılacak Tasklar)",
+    "| Task ID | Ekip | Görev | Teslimat | Süre | Ön Koşul |",
+    "| --- | --- | --- | --- | --- | --- |",
+    tasks,
+    "",
+    "## 6) Test Senaryoları",
+    "| Test ID | Tür | Senaryo | Beklenen Sonuç |",
+    "| --- | --- | --- | --- |",
+    tests,
+    "",
+    "## 7) İş Akışı Diyagramı",
+    "```mermaid",
+    structured.mermaid
+      .replace(/^```mermaid/i, "")
+      .replace(/```$/i, "")
+      .trim(),
+    "```",
+    "",
+    "## 8) Playbooktan Çekilen Bölümler",
+    playbook,
+    "",
+    "## 9) Kullanılan Kaynaklar",
+    sources,
+  ].join("\n");
 }
 
 function compact(text: string): string {
@@ -287,10 +482,37 @@ function buildSingleRoleUserPrompt(input: {
       ? `PLAYBOOK BAGLAMI:\n${input.playbookContext}`
       : "PLAYBOOK BAGLAMI: yok.",
     input.ragContext ? `RAG BAGLAMI:\n${input.ragContext}` : "RAG BAGLAMI: yok.",
-    "CIKTI KURALI: Turkce Markdown kullan.",
-    "ZORUNLU BASLIKLAR:\n1) Problem Ozeti\n2) Referans Not Ozeti\n3) Rol Bazli Analiz\n4) Uygulanabilir Plan\n5) Ekip Bazli Gorev Dagilimi (tablo)\n6) Test Senaryolari (tablo)\n7) Is Akisi Diyagrami (mermaid, renkli classDef)\n8) Playbooktan Cekilen Bolumler\n9) Kullanilan Kaynaklar",
-    "Kaynaklari en sonda aynen bu etiketlerle listele:",
-    sourceText,
+    "CIKTI KURALI: Sadece gecerli JSON dondur. Markdown veya aciklama ekleme.",
+    "JSON semasi:",
+    `{
+  "problemSummary": "string",
+  "referenceNotesSummary": "string",
+  "roleAnalysis": ["string"],
+  "plan": ["string"],
+  "tasks": [
+    {
+      "id": "string",
+      "team": "string",
+      "title": "string",
+      "deliverable": "string",
+      "duration": "string",
+      "dependency": "string"
+    }
+  ],
+  "tests": [
+    {
+      "id": "string",
+      "type": "string",
+      "scenario": "string",
+      "expected": "string"
+    }
+  ],
+  "mermaid": "flowchart ... classDef ...",
+  "playbookSections": ["string"],
+  "sources": ["string"]
+}`,
+    "Kaynaklarda su etiketleri kullan:",
+    sourceText || "Kaynak yok",
   ].join("\n\n");
 }
 
@@ -349,8 +571,8 @@ export async function POST(req: Request) {
     const playbookSources = formatPlaybookSources(playbookHits);
     const excerpts = playbookHits.map((h) => `${h.title}: ${h.excerpt.slice(0, 160).replace(/\n/g, " ")}...`);
 
-    const ragContext = await formatRagContext(query, 5);
-    const ragHits = await searchKnowledge(query, 5).catch(() => []);
+    const ragContext = await formatRagContext(query, 5, role);
+    const ragHits = await searchKnowledge(query, 5, role).catch(() => []);
     const ragSources = ragHits.map(
       (h, i) => `RAG ${i + 1}: ${h.title} (parça ${h.chunkIndex + 1})`
     );
@@ -383,9 +605,12 @@ export async function POST(req: Request) {
         allSources,
         excerpts
       );
+      const structured = parseStructuredOutput(llm.text, role, task, mergedNotes, allSources, excerpts);
+      const finalOutput = structured ? structuredToMarkdown(role, structured) : output;
 
       return NextResponse.json({
-        output,
+        output: finalOutput,
+        structured,
         fallback: !llm.text.trim(),
         provider: llm.provider,
         sources: allSources,
@@ -397,6 +622,7 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({
         output: fallbackOutput,
+        structured: null,
         fallback: true,
         provider: "playbook-lite",
         sources: allSources,

@@ -8,15 +8,17 @@ export async function POST(req: Request) {
     const body = await req.json();
     const query = String(body.query ?? "").trim();
     const topK = Number(body.topK ?? 5);
+    const role = String(body.role ?? "shared").trim() || "shared";
     if (!query) {
       return NextResponse.json({ error: "query zorunlu" }, { status: 400 });
     }
-    const hits = await searchKnowledge(query, topK);
+    const hits = await searchKnowledge(query, topK, role);
     return NextResponse.json({
       hits: hits.map((h) => ({
         title: h.title,
         chunkIndex: h.chunkIndex,
-        text: h.text
+        text: h.text,
+        role: h.role ?? "shared",
       }))
     });
   } catch (err: unknown) {

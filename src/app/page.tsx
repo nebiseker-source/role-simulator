@@ -19,6 +19,19 @@ type TeamResult = {
   fallbackUsed: boolean;
 };
 
+type StructuredTask = {
+  id: string;
+  team: string;
+  title: string;
+  deliverable: string;
+  duration: string;
+  dependency: string;
+};
+
+type StructuredSimulation = {
+  tasks?: StructuredTask[];
+};
+
 type OutputTab = "rapor" | "diyagram" | "gorevler" | "testler";
 
 function extractMermaidBlocks(markdown: string): string[] {
@@ -58,6 +71,32 @@ async function readJsonSafely(response: Response): Promise<Record<string, unknow
   }
 }
 
+function escapeCsv(value: string): string {
+  const clean = value.replace(/\r?\n/g, " ").trim();
+  return `"${clean.replace(/"/g, '""')}"`;
+}
+
+function parseTasksFromMarkdown(section: string): StructuredTask[] {
+  const rows = section
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("|") && !l.includes("---"));
+  return rows
+    .slice(1)
+    .map((line, i) => {
+      const cells = line.split("|").map((x) => x.trim()).filter(Boolean);
+      return {
+        id: cells[0] || `TASK-${i + 1}`,
+        team: cells[1] || "Takım",
+        title: cells[2] || "",
+        deliverable: cells[3] || "-",
+        duration: cells[4] || "-",
+        dependency: cells[5] || "-",
+      };
+    })
+    .filter((x) => x.title);
+}
+
 export default function Home() {
   const roles = useMemo(() => Object.keys(ROLE_LABELS) as RoleKey[], []);
   const [role, setRole] = useState<RoleKey>("business_analyst");
@@ -70,6 +109,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [activeResult, setActiveResult] = useState<"single" | "team" | "">("");
   const [singleOutput, setSingleOutput] = useState("");
+  const [singleStructured, setSingleStructured] = useState<StructuredSimulation | null>(null);
   const [singleFallback, setSingleFallback] = useState(false);
   const [teamOutput, setTeamOutput] = useState<TeamResult | null>(null);
   const [ragLoading, setRagLoading] = useState(false);
@@ -136,6 +176,7 @@ export default function Home() {
     setLoading(true);
     setActiveResult("single");
     setSingleOutput("");
+    setSingleStructured(null);
     setSingleFallback(false);
     setOutputTab("rapor");
     try {
@@ -147,6 +188,7 @@ export default function Home() {
       const data = await readJsonSafely(r);
       if (!r.ok) throw new Error(String(data.error ?? "API hatası"));
       setSingleOutput(String(data.output ?? ""));
+      setSingleStructured((data.structured as StructuredSimulation | null) ?? null);
       setSingleFallback(Boolean(data.fallback));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
@@ -192,6 +234,7 @@ export default function Home() {
       const form = new FormData();
       form.append("title", task.trim() ? task.trim().slice(0, 80) : "Kaynak Dosya");
       form.append("text", fileNotes);
+      form.append("role", role);
       if (notesFile) form.append("file", notesFile);
 
       const r = await fetch("/api/rag/index", { method: "POST", body: form });
@@ -210,6 +253,35 @@ export default function Home() {
     } finally {
       setRagLoading(false);
     }
+  }
+
+  function downloadJiraCsv() {
+    const structuredTasks = singleStructured?.tasks ?? [];
+    const tasks = structuredTasks.length ? structuredTasks : parseTasksFromMarkdown(taskSection || visibleOutput);
+    if (!tasks.length) {
+      setRagMessage("Jira CSV iÃ§in gÃ¶rev bulunamadÄ±. Ã–nce simÃ¼lasyon Ã¼ret.");
+      return;
+    }
+
+    const headers = ["Summary", "Description", "Issue Type", "Priority", "Labels"];
+    const rows = tasks.map((t) => [
+      `${role.toUpperCase()} - ${t.title}`,
+      `TakÄ±m: ${t.team} | Teslimat: ${t.deliverable} | SÃ¼re: ${t.duration} | BaÄŸÄ±mlÄ±lÄ±k: ${t.dependency}`,
+      "Task",
+      "Medium",
+      `${role},ai-simulator`,
+    ]);
+
+    const csv = [headers.map(escapeCsv).join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `jira-export-${role}-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   function renderOutputTab() {
@@ -345,13 +417,22 @@ export default function Home() {
         <section className="mt-6 rounded-2xl border border-white/10 bg-white p-5 text-slate-800 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Çıktı Paneli</h2>
-            <button
-              onClick={() => navigator.clipboard.writeText(visibleOutput)}
-              disabled={!visibleOutput}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50"
-            >
-              Kopyala
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={downloadJiraCsv}
+                disabled={!visibleOutput}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50"
+              >
+                Jira CSV Ä°ndir
+              </button>
+              <button
+                onClick={() => navigator.clipboard.writeText(visibleOutput)}
+                disabled={!visibleOutput}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50"
+              >
+                Kopyala
+              </button>
+            </div>
           </div>
 
           <div className="mb-4 flex flex-wrap gap-2">
