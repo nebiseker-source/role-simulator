@@ -612,6 +612,7 @@ export async function POST(req: Request) {
         output: finalOutput,
         structured,
         fallback: !llm.text.trim(),
+        fallbackReason: !llm.text.trim() ? "Model boş yanıt döndürdü." : null,
         provider: llm.provider,
         sources: allSources,
       });
@@ -624,6 +625,7 @@ export async function POST(req: Request) {
         output: fallbackOutput,
         structured: null,
         fallback: true,
+        fallbackReason: err instanceof Error ? err.message : "Bilinmeyen bağlantı hatası",
         provider: "playbook-lite",
         sources: allSources,
       });

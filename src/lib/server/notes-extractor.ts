@@ -5,46 +5,32 @@ export type ExtractedNotes = {
   pageCount?: number;
 };
 
+type PdfParseResult = {
+  text?: string;
+  numpages?: number;
+};
+
 async function extractPdfText(buffer: Buffer): Promise<ExtractedNotes> {
-  // Lazy import: modül yükleme sorunu olursa route import aşamasında 500'e düşmez.
+  // pdf-parse@1.x API: default export bir parse fonksiyonu dondurur.
   const pdfModule = await import("pdf-parse");
-
-  // pdf-parse v2 style
-  const PDFParseCtor = (pdfModule as unknown as {
-    PDFParse?: new (args: { data: Buffer }) => {
-      getInfo: () => Promise<{ total: number }>;
-      getText: () => Promise<{ text: string }>;
-      destroy: () => Promise<void>;
-    };
-  }).PDFParse;
-
-  if (PDFParseCtor) {
-    const parser = new PDFParseCtor({ data: buffer });
-    const info = await parser.getInfo();
-    const pageCount = info.total;
-    if (pageCount > MAX_PDF_PAGES) {
-      await parser.destroy();
-      throw new Error(`PDF sayfa limiti aşıldı. En fazla ${MAX_PDF_PAGES} sayfa yüklenebilir.`);
-    }
-    const result = await parser.getText();
-    await parser.destroy();
-    return { text: result.text.trim(), pageCount };
-  }
-
-  // pdf-parse v1 style
-  const parseLegacy = (pdfModule as unknown as {
-    default?: (data: Buffer) => Promise<{ text?: string; numpages?: number }>;
+  const parsePdf = (pdfModule as unknown as {
+    default?: (dataBuffer: Buffer) => Promise<PdfParseResult>;
   }).default;
-  if (parseLegacy) {
-    const result = await parseLegacy(buffer);
-    const pageCount = Number(result.numpages ?? 0);
-    if (pageCount > MAX_PDF_PAGES) {
-      throw new Error(`PDF sayfa limiti aşıldı. En fazla ${MAX_PDF_PAGES} sayfa yüklenebilir.`);
-    }
-    return { text: String(result.text ?? "").trim(), pageCount };
+
+  if (!parsePdf) {
+    throw new Error("PDF parser baslatilamadi.");
   }
 
-  throw new Error("PDF parser başlatılamadı.");
+  const result = await parsePdf(buffer);
+  const pageCount = Number(result.numpages ?? 0);
+  if (pageCount > MAX_PDF_PAGES) {
+    throw new Error(`PDF sayfa limiti asildi. En fazla ${MAX_PDF_PAGES} sayfa yuklenebilir.`);
+  }
+
+  return {
+    text: String(result.text ?? "").trim(),
+    pageCount,
+  };
 }
 
 async function extractDocxText(buffer: Buffer): Promise<string> {
@@ -54,15 +40,16 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   }).default;
 
   if (!mammoth?.extractRawText) {
-    throw new Error("DOCX parser başlatılamadı.");
+    throw new Error("DOCX parser baslatilamadi.");
   }
+
   const result = await mammoth.extractRawText({ buffer });
   return result.value.trim();
 }
 
 export async function extractTextFromNotesFile(file: File): Promise<ExtractedNotes> {
   if (file.size > MAX_FILE_BYTES) {
-    throw new Error("Dosya boyutu 8 MB sınırını aşıyor.");
+    throw new Error("Dosya boyutu 8 MB sinirini asiyor.");
   }
 
   const arrayBuffer = await file.arrayBuffer();
@@ -84,5 +71,5 @@ export async function extractTextFromNotesFile(file: File): Promise<ExtractedNot
     return { text: buffer.toString("utf-8").trim() };
   }
 
-  throw new Error("Desteklenmeyen dosya türü. PDF, DOCX, TXT veya MD yükleyin.");
+  throw new Error("Desteklenmeyen dosya turu. PDF, DOCX, TXT veya MD yukleyin.");
 }
