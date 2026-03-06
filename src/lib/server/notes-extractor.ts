@@ -11,13 +11,14 @@ type PdfParseResult = {
 };
 
 async function extractPdfText(buffer: Buffer): Promise<ExtractedNotes> {
-  // pdf-parse@1.x API: default export bir parse fonksiyonu dondurur.
-  const pdfModule = await import("pdf-parse");
-  const parsePdf = (pdfModule as unknown as {
-    default?: (dataBuffer: Buffer) => Promise<PdfParseResult>;
-  }).default;
+  // "pdf-parse" ana girisi bazi ortamlarda debug test dosyasini acmaya calisabiliyor.
+  // Bu nedenle dogrudan parser dosyasini yukluyoruz.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const parsePdf = require("pdf-parse/lib/pdf-parse.js") as
+    | ((dataBuffer: Buffer) => Promise<PdfParseResult>)
+    | undefined;
 
-  if (!parsePdf) {
+  if (typeof parsePdf !== "function") {
     throw new Error("PDF parser baslatilamadi.");
   }
 
