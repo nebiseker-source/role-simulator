@@ -34,6 +34,15 @@ type StructuredSimulation = {
 
 type OutputTab = "rapor" | "diyagram" | "gorevler" | "testler";
 
+type LlmHealth = {
+  ok: boolean;
+  provider: string;
+  detail: string;
+  baseUrl?: string;
+  model?: string;
+  embedModel?: string;
+};
+
 function extractMermaidBlocks(markdown: string): string[] {
   const matches = markdown.matchAll(/```mermaid\s*([\s\S]*?)```/gim);
   return Array.from(matches, (m) => m[1]?.trim() ?? "").filter(Boolean);
@@ -117,6 +126,8 @@ export default function Home() {
   const [ragMessage, setRagMessage] = useState("");
   const [ragStats, setRagStats] = useState<{ documents: number; chunks: number } | null>(null);
   const [outputTab, setOutputTab] = useState<OutputTab>("rapor");
+  const [llmHealth, setLlmHealth] = useState<LlmHealth | null>(null);
+  const [llmHealthLoading, setLlmHealthLoading] = useState(false);
 
   const visibleOutput = activeResult === "team" ? teamOutput?.finalSynthesis ?? "" : singleOutput;
   const diagrams = useMemo(() => extractMermaidBlocks(visibleOutput), [visibleOutput]);
@@ -145,6 +156,35 @@ export default function Home() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  async function checkLlmHealth() {
+    setLlmHealthLoading(true);
+    try {
+      const r = await fetch("/api/llm/health", { cache: "no-store" });
+      const data = await readJsonSafely(r);
+      setLlmHealth({
+        ok: Boolean(data.ok),
+        provider: String(data.provider ?? "-"),
+        detail: String(data.detail ?? "-"),
+        baseUrl: data.baseUrl ? String(data.baseUrl) : undefined,
+        model: data.model ? String(data.model) : undefined,
+        embedModel: data.embedModel ? String(data.embedModel) : undefined,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Bilinmeyen hata";
+      setLlmHealth({
+        ok: false,
+        provider: "unknown",
+        detail: message,
+      });
+    } finally {
+      setLlmHealthLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    checkLlmHealth();
   }, []);
 
   async function handleSourceFile(file: File | null) {
@@ -465,6 +505,27 @@ export default function Home() {
               {singleFallbackReason ? ` Detay: ${singleFallbackReason}` : ""}
             </p>
           )}
+
+          <div className="mb-3 rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-700">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">Model Baglanti Durumu</span>
+              <button
+                type="button"
+                onClick={checkLlmHealth}
+                disabled={llmHealthLoading}
+                className="rounded border border-slate-400 px-2 py-0.5 hover:bg-slate-200 disabled:opacity-60"
+              >
+                {llmHealthLoading ? "Kontrol ediliyor..." : "Yeniden kontrol et"}
+              </button>
+            </div>
+            {llmHealth ? (
+              <div className="mt-1">
+                {llmHealth.ok ? "Bagli" : "Baglanti sorunu"} | {llmHealth.provider} | {llmHealth.detail}
+              </div>
+            ) : (
+              <div className="mt-1 text-slate-500">Durum bekleniyor...</div>
+            )}
+          </div>
 
           <div className="min-h-[72vh] max-h-[85vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-5">
             {renderOutputTab()}
