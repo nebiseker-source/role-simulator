@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { RoleKey } from "@/lib/roles";
+import { getOllamaBaseUrl, getOllamaHeaders } from "@/lib/server/ollama";
 
 type RagRole = RoleKey | "shared";
 
@@ -81,12 +82,12 @@ function splitIntoChunks(text: string, chunkSize = 900, overlap = 120): string[]
 }
 
 async function embedText(text: string): Promise<number[]> {
-  const base = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434";
+  const base = getOllamaBaseUrl();
   const model = process.env.OLLAMA_EMBED_MODEL ?? "nomic-embed-text";
 
   const tryNew = await fetch(`${base}/api/embed`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getOllamaHeaders(true),
     body: JSON.stringify({
       model,
       input: text
@@ -101,7 +102,7 @@ async function embedText(text: string): Promise<number[]> {
 
   const tryOld = await fetch(`${base}/api/embeddings`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getOllamaHeaders(true),
     body: JSON.stringify({
       model,
       prompt: text

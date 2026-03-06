@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getOllamaBaseUrl, getOllamaHeaders } from "@/lib/server/ollama";
 
 export type LlmProvider = "local" | "openai";
 
@@ -63,12 +64,12 @@ async function callOpenAI(input: LlmCallInput): Promise<LlmCallOutput> {
 }
 
 async function callLocalOllama(input: LlmCallInput): Promise<LlmCallOutput> {
-  const baseUrl = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434";
+  const baseUrl = getOllamaBaseUrl();
   const model = process.env.OLLAMA_MODEL ?? "qwen2.5:7b-instruct";
 
   const resp = await fetch(`${baseUrl}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getOllamaHeaders(true),
     body: JSON.stringify({
       model,
       stream: false,

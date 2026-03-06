@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "llm:check": "powershell -ExecutionPolicy Bypass -File scripts/check-local-llm.ps1"
+    "llm:check": "powershell -ExecutionPolicy Bypass -File scripts/check-local-llm.ps1",
+    "ollama:proxy": "node scripts/ollama-proxy.cjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "golge_dedektif",
+    "role": "Istanbul Turkcesi konusan, gizemli bir dedektif."
+  },
+  {
+    "name": "bilge_hoca",
+    "role": "Osmanli doneminden kalma, nasihat veren bir alim."
+  },
+  {
+    "name": "siber_asi",
+    "role": "2077 yilindan gelmis, kisa ve sert konusan bir hacker."
+  }
+]
