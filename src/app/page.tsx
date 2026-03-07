@@ -69,13 +69,13 @@ async function readJsonSafely(response: Response): Promise<Record<string, unknow
   const raw = await response.text();
   const endpoint = response.url ? new URL(response.url).pathname : "API";
   if (!raw) {
-    throw new Error(`${endpoint} boÅŸ yanÄ±t dÃ¶ndÃ¼rdÃ¼ (HTTP ${response.status}).`);
+    throw new Error(`${endpoint} boş yanıt döndürdü (HTTP ${response.status}).`);
   }
   try {
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {
     throw new Error(
-      `${endpoint} JSON dÄ±ÅŸÄ± yanÄ±t dÃ¶ndÃ¼rdÃ¼ (HTTP ${response.status}). Ä°lk iÃ§erik: ${raw.slice(0, 200)}`
+      `${endpoint} JSON dışı yanıt döndürdü (HTTP ${response.status}). İlk içerik: ${raw.slice(0, 200)}`
     );
   }
 }
@@ -96,7 +96,7 @@ function parseTasksFromMarkdown(section: string): StructuredTask[] {
       const cells = line.split("|").map((x) => x.trim()).filter(Boolean);
       return {
         id: cells[0] || `TASK-${i + 1}`,
-        team: cells[1] || "TakÄ±m",
+        team: cells[1] || "Takım",
         title: cells[2] || "",
         deliverable: cells[3] || "-",
         duration: cells[4] || "-",
@@ -134,29 +134,18 @@ export default function Home() {
   const taskSection = useMemo(
     () =>
       extractSection(visibleOutput, [
-        "gÃ¶rev kÄ±rÄ±lÄ±mÄ±",
+        "görev kırılımı",
         "task breakdown",
         "backlog",
         "plan",
-        "teslimat Ã§Ä±ktÄ±larÄ±",
+        "teslimat çıktıları",
       ]),
     [visibleOutput]
   );
   const testSection = useMemo(
-    () => extractSection(visibleOutput, ["test senaryolarÄ±", "test", "acceptance criteria"]),
+    () => extractSection(visibleOutput, ["test senaryoları", "test", "acceptance criteria"]),
     [visibleOutput]
   );
-
-  useEffect(() => {
-    fetch("/api/rag/stats")
-      .then((r) => readJsonSafely(r))
-      .then((data) => {
-        if (typeof data.documents === "number" && typeof data.chunks === "number") {
-          setRagStats({ documents: data.documents, chunks: data.chunks });
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   async function checkLlmHealth() {
     setLlmHealthLoading(true);
@@ -184,6 +173,15 @@ export default function Home() {
   }
 
   useEffect(() => {
+    fetch("/api/rag/stats")
+      .then((r) => readJsonSafely(r))
+      .then((data) => {
+        if (typeof data.documents === "number" && typeof data.chunks === "number") {
+          setRagStats({ documents: data.documents, chunks: data.chunks });
+        }
+      })
+      .catch(() => {});
+
     checkLlmHealth();
   }, []);
 
@@ -200,11 +198,11 @@ export default function Home() {
       form.append("notesFile", file);
       const r = await fetch("/api/extract-notes", { method: "POST", body: form });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "Dosya iÅŸlenemedi"));
+      if (!r.ok) throw new Error(String(data.error ?? "Dosya işlenemedi"));
 
       setFileNotes(String(data.extractedText ?? ""));
       setFileInfo(
-        `${data.fileName} â€¢ ${(Number(data.fileSize) / 1024 / 1024).toFixed(2)} MB${data.pageCount ? ` â€¢ ${data.pageCount} sayfa` : ""}${data.clipped ? " â€¢ metin kÄ±saltÄ±ldÄ±" : ""}`
+        `${data.fileName} • ${(Number(data.fileSize) / 1024 / 1024).toFixed(2)} MB${data.pageCount ? ` • ${data.pageCount} sayfa` : ""}${data.clipped ? " • metin kısaltıldı" : ""}`
       );
     } catch (err: unknown) {
       setFileError(err instanceof Error ? err.message : "Bilinmeyen hata");
@@ -228,7 +226,7 @@ export default function Home() {
         body: JSON.stringify({ role, task, fileNotes }),
       });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "API hatasÄ±"));
+      if (!r.ok) throw new Error(String(data.error ?? "API hatası"));
       setSingleOutput(String(data.output ?? ""));
       setSingleStructured((data.structured as StructuredSimulation | null) ?? null);
       setSingleFallback(Boolean(data.fallback));
@@ -256,7 +254,7 @@ export default function Home() {
         }),
       });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "API hatasÄ±"));
+      if (!r.ok) throw new Error(String(data.error ?? "API hatası"));
       setTeamOutput(data as unknown as TeamResult);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
@@ -282,9 +280,9 @@ export default function Home() {
 
       const r = await fetch("/api/rag/index", { method: "POST", body: form });
       const data = await readJsonSafely(r);
-      if (!r.ok) throw new Error(String(data.error ?? "RAG indexleme hatasÄ±"));
+      if (!r.ok) throw new Error(String(data.error ?? "RAG indexleme hatası"));
 
-      setRagMessage(`RAG indexleme tamamlandÄ±. DokÃ¼man: ${data.docId}, parÃ§a: ${data.chunkCount}`);
+      setRagMessage(`RAG indexleme tamamlandı. Doküman: ${data.docId}, parça: ${data.chunkCount}`);
       const statsResp = await fetch("/api/rag/stats");
       const stats = await readJsonSafely(statsResp);
       if (typeof stats.documents === "number" && typeof stats.chunks === "number") {
@@ -302,14 +300,14 @@ export default function Home() {
     const structuredTasks = singleStructured?.tasks ?? [];
     const tasks = structuredTasks.length ? structuredTasks : parseTasksFromMarkdown(taskSection || visibleOutput);
     if (!tasks.length) {
-      setRagMessage("Jira CSV iÃƒÂ§in gÃƒÂ¶rev bulunamadÃ„Â±. Ãƒâ€“nce simÃƒÂ¼lasyon ÃƒÂ¼ret.");
+      setRagMessage("Jira CSV için görev bulunamadı. Önce simülasyon üret.");
       return;
     }
 
     const headers = ["Summary", "Description", "Issue Type", "Priority", "Labels"];
     const rows = tasks.map((t) => [
       `${role.toUpperCase()} - ${t.title}`,
-      `TakÃ„Â±m: ${t.team} | Teslimat: ${t.deliverable} | SÃƒÂ¼re: ${t.duration} | BaÃ„Å¸Ã„Â±mlÃ„Â±lÃ„Â±k: ${t.dependency}`,
+      `Takım: ${t.team} | Teslimat: ${t.deliverable} | Süre: ${t.duration} | Bağımlılık: ${t.dependency}`,
       "Task",
       "Medium",
       `${role},ai-simulator`,
@@ -329,13 +327,13 @@ export default function Home() {
 
   function renderOutputTab() {
     if (!visibleOutput) {
-      return <p className="text-slate-500">HenÃ¼z Ã§Ä±ktÄ± yok. YukarÄ±dan simÃ¼lasyon baÅŸlat.</p>;
+      return <p className="text-slate-500">Henüz çıktı yok. Yukarıdan simülasyon başlat.</p>;
     }
 
     if (outputTab === "rapor") return <MarkdownOutput content={visibleOutput} />;
 
     if (outputTab === "diyagram") {
-      if (!diagrams.length) return <p className="text-slate-500">Bu Ã§Ä±ktÄ±da Mermaid diyagramÄ± bulunamadÄ±.</p>;
+      if (!diagrams.length) return <p className="text-slate-500">Bu çıktıda Mermaid diyagramı bulunamadı.</p>;
       return (
         <div className="space-y-4">
           {diagrams.map((chart, i) => (
@@ -351,14 +349,14 @@ export default function Home() {
       return taskSection ? (
         <MarkdownOutput content={taskSection} />
       ) : (
-        <p className="text-slate-500">GÃ¶rev kÄ±rÄ±lÄ±mÄ± bÃ¶lÃ¼mÃ¼ bulunamadÄ±.</p>
+        <p className="text-slate-500">Görev kırılımı bölümü bulunamadı.</p>
       );
     }
 
     return testSection ? (
       <MarkdownOutput content={testSection} />
     ) : (
-      <p className="text-slate-500">Test senaryolarÄ± bÃ¶lÃ¼mÃ¼ bulunamadÄ±.</p>
+      <p className="text-slate-500">Test senaryoları bölümü bulunamadı.</p>
     );
   }
 
@@ -367,14 +365,14 @@ export default function Home() {
       <div className="mx-auto max-w-7xl px-6 py-8 md:py-10">
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-700 via-cyan-700 to-blue-700 p-6 md:p-8">
           <p className="text-xs uppercase tracking-[0.18em] text-cyan-100/90">Business AI Studio</p>
-          <h1 className="mt-2 text-2xl font-semibold md:text-3xl">Role-Based Analist SimÃ¼latÃ¶rÃ¼</h1>
+          <h1 className="mt-2 text-2xl font-semibold md:text-3xl">Role-Based Analist Simülatörü</h1>
           <p className="mt-3 max-w-4xl text-sm text-sky-100/90 md:text-base">
-            Tek rol veya ekip simÃ¼lasyonu Ã§alÄ±ÅŸtÄ±r. Rapor, diyagram, gÃ¶revler ve testler sekmelerle ayrÄ± gÃ¶rÃ¼ntÃ¼lenir.
+            Tek rol veya ekip simülasyonu çalıştır. Rapor, diyagram, görevler ve testler sekmelerle ayrı görüntülenir.
           </p>
         </section>
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-          <h2 className="text-lg font-semibold">SimÃ¼lasyon GiriÅŸi</h2>
+          <h2 className="text-lg font-semibold">Simülasyon Girişi</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium">Rol</label>
@@ -392,12 +390,12 @@ export default function Home() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium">Ä°ÅŸ / Problem TanÄ±mÄ±</label>
+              <label className="mb-2 block text-sm font-medium">İş / Problem Tanımı</label>
               <textarea
                 className="min-h-[140px] w-full rounded-xl border border-white/15 bg-slate-950 px-3 py-2"
                 value={task}
                 onChange={(e) => setTask(e.target.value)}
-                placeholder="Ã–rn: Sefer iptalinde mÃ¼ÅŸteriyi otomatik bilgilendirme ve alternatif Ã¶neri sÃ¼reci"
+                placeholder="Örn: Sefer iptalinde müşteriyi otomatik bilgilendirme ve alternatif öneri süreci"
               />
             </div>
 
@@ -409,16 +407,16 @@ export default function Home() {
                 onChange={(e) => handleSourceFile(e.target.files?.[0] ?? null)}
                 className="block w-full cursor-pointer rounded-xl border border-dashed border-cyan-300/40 bg-slate-950 px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-1.5 file:text-white hover:border-cyan-300/70"
               />
-              <p className="mt-1 text-xs text-slate-400">Limit: en fazla 8 MB, PDF iÃ§in en fazla 40 sayfa.</p>
+              <p className="mt-1 text-xs text-slate-400">Limit: en fazla 8 MB, PDF için en fazla 40 sayfa.</p>
               <p className="mt-1 text-xs text-cyan-200">
-                {fileLoading ? "Dosya iÅŸleniyor..." : fileInfo || (notesFile ? notesFile.name : "Dosya seÃ§ilmedi.")}
+                {fileLoading ? "Dosya işleniyor..." : fileInfo || (notesFile ? notesFile.name : "Dosya seçilmedi.")}
               </p>
               {fileError ? <p className="mt-1 text-xs text-rose-300">{fileError}</p> : null}
             </div>
 
             {fileNotes ? (
               <div className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-1 text-xs uppercase tracking-wider text-slate-400">Dosyadan Ã‡Ä±kan Ä°Ã§erik Ã–nizleme</div>
+                <div className="mb-1 text-xs uppercase tracking-wider text-slate-400">Dosyadan Çıkan İçerik Önizleme</div>
                 <pre className="max-h-36 overflow-auto whitespace-pre-wrap text-xs text-slate-200">{fileNotes}</pre>
               </div>
             ) : null}
@@ -429,14 +427,14 @@ export default function Home() {
                 disabled={loading || !task.trim()}
                 className="rounded-xl bg-cyan-500 px-4 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading && activeResult === "single" ? "Ã‡alÄ±ÅŸÄ±yor..." : "Tek Rol SimÃ¼le Et"}
+                {loading && activeResult === "single" ? "Çalışıyor..." : "Tek Rol Simüle Et"}
               </button>
               <button
                 onClick={runTeamSimulation}
                 disabled={loading || !task.trim()}
                 className="rounded-xl bg-indigo-500 px-4 py-2.5 font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading && activeResult === "team" ? "Ã‡alÄ±ÅŸÄ±yor..." : "Ekip SimÃ¼lasyonu"}
+                {loading && activeResult === "team" ? "Çalışıyor..." : "Ekip Simülasyonu"}
               </button>
               <button
                 type="button"
@@ -444,14 +442,14 @@ export default function Home() {
                 disabled={ragLoading || (!notesFile && !fileNotes)}
                 className="rounded-xl border border-cyan-300/40 px-3 py-2.5 text-sm text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
               >
-                {ragLoading ? "Ä°ndeksleniyor..." : "KaynaÄŸÄ± RAG'e Ekle"}
+                {ragLoading ? "İndeksleniyor..." : "Kaynağı RAG'e Ekle"}
               </button>
             </div>
 
             <div className="md:col-span-2 rounded-xl border border-cyan-300/25 bg-cyan-950/20 p-3 text-xs text-cyan-100/90">
               {ragStats
-                ? `Toplam dokÃ¼man: ${ragStats.documents} â€¢ Toplam parÃ§a: ${ragStats.chunks}`
-                : "RAG istatistikleri yÃ¼kleniyor..."}
+                ? `Toplam doküman: ${ragStats.documents} • Toplam parça: ${ragStats.chunks}`
+                : "RAG istatistikleri yükleniyor..."}
               {ragMessage ? <div className="mt-1">{ragMessage}</div> : null}
             </div>
           </div>
@@ -459,14 +457,14 @@ export default function Home() {
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-white p-5 text-slate-800 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Ã‡Ä±ktÄ± Paneli</h2>
+            <h2 className="text-lg font-semibold">Çıktı Paneli</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={downloadJiraCsv}
                 disabled={!visibleOutput}
                 className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50"
               >
-                Jira CSV Ã„Â°ndir
+                Jira CSV İndir
               </button>
               <button
                 onClick={() => navigator.clipboard.writeText(visibleOutput)}
@@ -482,7 +480,7 @@ export default function Home() {
             {[
               { id: "rapor", label: "Rapor" },
               { id: "diyagram", label: `Diyagramlar (${diagrams.length})` },
-              { id: "gorevler", label: "GÃ¶revler" },
+              { id: "gorevler", label: "Görevler" },
               { id: "testler", label: "Testler" },
             ].map((tab) => (
               <button
@@ -501,14 +499,14 @@ export default function Home() {
 
           {(singleFallback || teamOutput?.fallbackUsed) && (
             <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">
-              Quota veya baÄŸlantÄ± sorunu nedeniyle fallback modu kullanÄ±ldÄ±.
+              Quota veya bağlantı sorunu nedeniyle fallback modu kullanıldı.
               {singleFallbackReason ? ` Detay: ${singleFallbackReason}` : ""}
             </p>
           )}
 
           <div className="mb-3 rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-700">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold">Model Baglanti Durumu</span>
+              <span className="font-semibold">Model Bağlantı Durumu</span>
               <button
                 type="button"
                 onClick={checkLlmHealth}
@@ -520,7 +518,7 @@ export default function Home() {
             </div>
             {llmHealth ? (
               <div className="mt-1">
-                {llmHealth.ok ? "Bagli" : "Baglanti sorunu"} | {llmHealth.provider} | {llmHealth.detail}
+                {llmHealth.ok ? "Bağlı" : "Bağlantı sorunu"} | {llmHealth.provider} | {llmHealth.detail}
               </div>
             ) : (
               <div className="mt-1 text-slate-500">Durum bekleniyor...</div>
@@ -533,7 +531,7 @@ export default function Home() {
 
           {activeResult === "team" && teamOutput?.steps.length ? (
             <div className="mt-4 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-700">Rol BazlÄ± Ara Ã‡Ä±ktÄ±lar</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Rol Bazlı Ara Çıktılar</h3>
               {teamOutput.steps.map((step) => (
                 <details key={step.role} className="rounded-xl border border-slate-200 bg-white p-3">
                   <summary className="cursor-pointer font-semibold">

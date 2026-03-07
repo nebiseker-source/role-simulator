@@ -10,6 +10,21 @@ type PdfParseResult = {
   numpages?: number;
 };
 
+function ensurePageLimit(pageCount: number) {
+  if (pageCount > MAX_PDF_PAGES) {
+    throw new Error(`PDF sayfa limiti asildi. En fazla ${MAX_PDF_PAGES} sayfa yuklenebilir.`);
+  }
+}
+
+function normalizePdfResult(result: PdfParseResult): ExtractedNotes {
+  const pageCount = Number(result.numpages ?? 0);
+  ensurePageLimit(pageCount);
+  return {
+    text: String(result.text ?? "").trim(),
+    pageCount,
+  };
+}
+
 async function extractPdfText(buffer: Buffer): Promise<ExtractedNotes> {
   // "pdf-parse" ana girisi bazi ortamlarda debug test dosyasini acmaya calisabiliyor.
   // Bu nedenle dogrudan parser dosyasini yukluyoruz.
@@ -22,16 +37,31 @@ async function extractPdfText(buffer: Buffer): Promise<ExtractedNotes> {
     throw new Error("PDF parser baslatilamadi.");
   }
 
-  const result = await parsePdf(buffer);
-  const pageCount = Number(result.numpages ?? 0);
-  if (pageCount > MAX_PDF_PAGES) {
-    throw new Error(`PDF sayfa limiti asildi. En fazla ${MAX_PDF_PAGES} sayfa yuklenebilir.`);
-  }
+  try {
+    const result = await parsePdf(buffer);
+    return normalizePdfResult(result);
+  } catch (firstError) {
+    // Bazı PDF'lerde ilk parser "fetch failed" dönebiliyor.
+    // Bu durumda paketin ana export'unu ikinci yöntem olarak deneriz.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const parsePdfMain = require("pdf-parse") as ((dataBuffer: Buffer) => Promise<PdfParseResult>) | undefined;
+    if (typeof parsePdfMain === "function") {
+      try {
+        const result = await parsePdfMain(buffer);
+        return normalizePdfResult(result);
+      } catch {
+        // ilk hatayı koru
+      }
+    }
 
-  return {
-    text: String(result.text ?? "").trim(),
-    pageCount,
-  };
+    const message = firstError instanceof Error ? firstError.message : String(firstError);
+    if (message.toLowerCase().includes("fetch failed")) {
+      throw new Error(
+        "PDF ayrıştırılamadı (fetch failed). PDF'i Word/TXT olarak veya daha sade bir PDF olarak tekrar yükleyin."
+      );
+    }
+    throw firstError;
+  }
 }
 
 async function extractDocxText(buffer: Buffer): Promise<string> {
